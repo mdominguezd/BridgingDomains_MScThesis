@@ -1,33 +1,87 @@
+import os
+import rioxarray
+import random
+import torch
+import torchvision
+import matplotlib.pyplot as plt
+from torch.utils.data import Dataset
+import torchvision.transforms.v2 as T
+from skimage import io
 
+
+def calculate_percentiles(img_folder, samples = 400):
+    """
+        Function to calculate 0.01 and 0.99 percentiles of the bands of planet images. These values will be later used for normalizing the dataset.
+
+        Inputs:
+            - img_folder: The name of the folder with the images.
+            - samples: The number of images to take to calculate these percentiles, for computing reasons not all images are considered.
+        Output:
+            - vals: The mean 1% and 99% quantiles for the images analysed.
+    """
+    imgs = [fn for fn in os.listdir(img_folder) if 'StudyArea' in fn]
+
+    random.seed(8)
+    img_sample = random.sample(imgs, samples)
+    quantiles = np.zeros((2,4))
+    
+    for i in img_sample:
+        quantiles += rioxarray.open_rasterio(img_folder + "\\" + i).quantile((0.01, 0.99), dim = ('x','y')).values
+    
+    vals = quantiles/len(img_sample)
+    
+    return vals
+    
+# Default values calculated on cashew crops of both domains.
+quant_CIV = np.array([[217.0,	528.0,	389.0,	2162.0],
+                      [542.0,	896.0,	984.0,	3877.0]])
+
+quant_TNZ = np.array([[209.0, 483.35, 335.0, 2560.0], 
+                      [416.0, 723.65, 751.0, 3818.0]])
+
+############################
 ###### DATASET CLASS #######
-# These values were calculated using the histograms on notebook 01_02_DataDistributionShift.ipynb
-means_CIV = [338.995536,	677.268924,	630.248048,	2874.836857]
-oneperc_CIV = [217.0,	528.0,	389.0,	2162.0]
-ninenine_CIV = [542.0,	896.0,	984.0,	3877.0]
-std_CIV = [67.369635,	79.766812,	131.564375,	365.127796]
-
-means_TNZ = [299.61809,	584.028463,	545.825534,	3020.286079]
-oneperc_TNZ = [209.0,	483.35,	335.0,	2560.0]
-ninenine_TNZ = [	416.0,	723.65,	751.0	,3818.0]
-std_TNZ = [63.56492,	72.122137,	103.400951,	295.013028]
+############################
 
 class Img_Dataset(Dataset):
-    def __init__(self, img_folder, transform = None, split = 'Train', norm = 'StandardScaler', VI = True):
+    def __init__(self, img_folder, transform = None, split = 'Train', norm = 'Linear_1_99', VI = True, recalculate_perc = False):
         self.img_folder = img_folder
         self.transform = transform
         self.split = split
         self.norm = norm
         self.VI = VI
 
+        # Depending of the domain the images will have different attributes (country and quantiles)
         if 'Tanzania'  in self.img_folder:
             self.country = 'Tanzania'
+            
+            if recalculate_perc:
+                self.quant_TNZ = calculate_percentiles(img_folder)
+            else:
+                self.quant_TNZ = quant_TNZ
         else:
             self.country = 'IvoryCoast'
+            
+            if recalculate_perc:
+                self.quant_CIV = calculate_percentiles(img_folder)
+            else:
+                self.quant_CIV = quant_CIV
 
     def __len__(self):
+        """
+            Method to calculate the number of images in the dataset.    
+        """
         return sum([self.split in i for i in os.listdir(self.img_folder)])//2
 
     def plot_imgs(self, idx, VIs = False):
+        """
+            Method to plot a specific image of the dataset.
+            
+            Input:
+                - self: The dataset class and its attributes.
+                - idx: index of the image that will be plotted.
+                - VIs: Boolean describing if vegetation indices should be plotted
+        """
 
         im, g = self.__getitem__(idx)
 
@@ -58,34 +112,25 @@ class Img_Dataset(Dataset):
 
 
     def __getitem__(self, idx):
-        #__getitem__ asks for the sample number idx.
-
+        """
+            Method to get the tensors (image and ground truth) for a specific image.
+        """
+    
         conversion = T.ToTensor()
 
         img = io.imread(fname = self.img_folder + '/Cropped' + self.country + self.split + 'StudyArea_{:05d}'.format(idx) + '.tif').astype(np.float32)
 
         if self.VI:
-            # Should I normalize this values between 0 and 1?
             if self.norm == 'Linear_1_99':
-                ndvi = ((img[:,:,3] - img[:,:,2])/(img[:,:,3] + img[:,:,2]) - 0.37)/(0.86 - (0.37))
-                ndwi = ((img[:,:,1] - img[:,:,3])/(img[:,:,3] + img[:,:,1]) - (-0.79))/((-0.41) - (-0.79))
-            else:
-                ndvi = (img[:,:,3] - img[:,:,2])/(img[:,:,3] + img[:,:,2])
+                ndvi = (img[:,:,3] - img[:,:,2])/(img[:,:,3] + img[:,:,2]) 
                 ndwi = (img[:,:,1] - img[:,:,3])/(img[:,:,3] + img[:,:,1])
 
-        if self.norm == 'StandardScaler':
+        if self.norm == 'Linear_1_99':
             for i in range(img.shape[-1]):
                 if 'Tanz' in self.img_folder:
-                    img[:,:,i] = (img[:,:,i] - means_TNZ[i])/(std_TNZ[i])
+                    img[:,:,i] = (img[:,:,i] - self.quant_TNZ[0,i])/(self.quant_TNZ[1,i] - self.quant_TNZ[0,i])
                 elif 'Ivor' in self.img_folder:
-                    img[:,:,i] = (img[:,:,i] - means_CIV[i])/(std_CIV[i])
-
-        elif self.norm == 'Linear_1_99':
-            for i in range(img.shape[-1]):
-                if 'Tanz' in self.img_folder:
-                    img[:,:,i] = (img[:,:,i] - oneperc_TNZ[i])/(ninenine_TNZ[i] - oneperc_TNZ[i])
-                elif 'Ivor' in self.img_folder:
-                    img[:,:,i] = (img[:,:,i] - oneperc_CIV[i])/(ninenine_CIV[i] - oneperc_CIV[i])
+                    img[:,:,i] = (img[:,:,i] - self.quant_CIV[0,i])/(self.quant_CIV[1,i] - self.quant_CIV[0,i])
 
         if self.VI:
             ndvi = np.expand_dims(ndvi, axis = 2)
