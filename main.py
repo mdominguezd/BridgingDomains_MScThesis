@@ -1,5 +1,8 @@
-from Dataset.Download_DS import download_DS
+import subprocess
 
-download_DS(['https://www.dropbox.com/scl/fi/ueafajskwc5qckynwl7af/PlanetTanzania_18_patch256_split1.zip?rlkey=mf68gq19rs7qyj03rj6tx5250&dl=0'], 
-            ['Tanzania1.zip'])
+# Download datasets
+subprocess.call(['sh','./Dataset/DS_Download.sh'])
+
+# Unzip and remove zip folders
+subprocess.call(['sh','./Dataset/DS_Unzip.sh'])
 
