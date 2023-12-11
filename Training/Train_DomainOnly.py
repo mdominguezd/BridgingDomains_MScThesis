@@ -6,7 +6,6 @@ import torch
 from torchmetrics.classification import BinaryF1Score
 import numpy as np
 
-
 from Dataset.ReadyToTrain_DS import Img_Dataset
 from Dataset import Transforms
 
@@ -140,7 +139,8 @@ def training_loop(train_loader, val_loader, learning_rate, starter_channels, mom
                 
             inputs = inputs.to(device)
             GTs = GTs.type(torch.long).squeeze().to(device)
-            #We set the gradients of the model to 0.
+            
+            #Set the gradients of the model to 0.
             optimizer.zero_grad()
             pred = network(inputs)
             
