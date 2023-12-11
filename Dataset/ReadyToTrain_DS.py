@@ -31,6 +31,24 @@ def calculate_percentiles(img_folder, samples = 400):
     vals = quantiles/len(img_sample)
     
     return vals
+
+
+def get_DataLoaders(dir, batch_size, transform, normalization, VI):
+    """
+        Function to get the training, validation and test data loader for a specific dataset.
+
+        Inputs:
+        
+    """
+    train_DS = Img_Dataset(dir, transform, norm = normalization, VI=VI)
+    val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI)
+    test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI)
+    
+    train_loader = torch.utils.data.DataLoader(dataset=train_DS, batch_size=batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(dataset=val_DS, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(dataset=test_DS, batch_size=batch_size, shuffle=False)
+    
+    return train_loader, val_loader, test_loader
     
 # Default values calculated on cashew crops of both domains.
 quant_CIV = np.array([[217.0,	528.0,	389.0,	2162.0],

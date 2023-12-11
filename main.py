@@ -1,10 +1,15 @@
 import subprocess
 import os
-from Dataset import ReadyToTrain_DS
+from Dataset.ReadyToTrain_DS import Img_Dataset
 from Dataset import Transforms
+from Dataset import Unzip_DS
 
-# Download datasets
-subprocess.call(['sh','./Dataset/DS_Unzip.sh'])
+# Once datasets have been downloaded (Using DS_Download.sh) you can unzip them
+Unzip_DS.UnzipFolders("Tanzania")
+Unzip_DS.UnzipFolders("IvoryCoast")
+
+
+
 
 
 
