@@ -23,8 +23,13 @@ def brightness(i, increase = 0.2, prob = 0.5):
 
 
 ### ALL transforms performed on the dataset:
-transform = T.Compose([
-    T.RandomHorizontalFlip(p=0.5),
-    T.RandomVerticalFlip(p=0.5),
-    T.Lambda(brightness)
+def get_transforms():
+    """
+        Function that will return the transform to be made on the fly to data.
+    """
+    transform = T.Compose([
+        T.RandomHorizontalFlip(p=0.5),
+        T.RandomVerticalFlip(p=0.5),
+        T.Lambda(brightness)
     ])
+    return transform

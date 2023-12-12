@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset
 import torchvision.transforms.v2 as T
 from skimage import io
-
+import numpy as np
 
 def calculate_percentiles(img_folder, samples = 400):
     """
