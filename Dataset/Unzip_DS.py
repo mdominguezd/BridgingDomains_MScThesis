@@ -14,7 +14,7 @@ def UnzipFolders(domain):
 
     if len([i for i in os.listdir('.') if '.zip' in i]) != 0: 
         if '.zip' in os.listdir('.'):
-            for i in range(3):
+            for i in range(1): # NEEEDS TO BE CHANGED
               with ZipFile(domain + str(i+1) + ".zip", 'r') as zipped:
                 zipped.extractall(path="./")
               os.remove(domain + str(i+1) + ".zip")

@@ -67,8 +67,11 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
     return metric
 
 
+def get_training_device():
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def training_loop(train_loader, val_loader, learning_rate, starter_channels, momentum, number_epochs, loss_function, bilinear = True, n_channels = 4, n_classes = 2, plot = True, accu_function = BinaryF1Score(), seed = 8, Love = False):
+
+def training_loop(network, train_loader, val_loader, learning_rate, starter_channels, momentum, number_epochs, loss_function, bilinear = True, n_channels = 4, n_classes = 2, plot = True, accu_function = BinaryF1Score(), seed = 8, Love = False):
     """
         Function to train the Neural Network.
 
@@ -99,7 +102,7 @@ def training_loop(train_loader, val_loader, learning_rate, starter_channels, mom
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     
-    network = UNet(n_channels=n_channels, n_classes=n_classes, bilinear=bilinear, starter = starter_channels, up_layer = 4)
+    network = network
     network.to(device)
     optimizer = torch.optim.SGD(network.parameters(), lr=learning_rate, momentum = momentum)
     

@@ -32,7 +32,6 @@ def calculate_percentiles(img_folder, samples = 400):
     
     return vals
 
-
 def get_DataLoaders(dir, batch_size, transform, normalization, VI):
     """
         Function to get the training, validation and test data loader for a specific dataset.
