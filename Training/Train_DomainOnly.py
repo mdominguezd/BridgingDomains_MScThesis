@@ -5,9 +5,7 @@ from collections import deque
 import torch
 from torchmetrics.classification import BinaryF1Score
 import numpy as np
-
-from Dataset.ReadyToTrain_DS import Img_Dataset
-from Dataset import Transforms
+import matplotlib.pyplot as plt
 
 def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False):
     """
@@ -62,7 +60,7 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
             f1_scores.append(f1_score.to('cpu').numpy())
             losses.append(loss.to('cpu').numpy())
 
-        metric = [np.mean(f1_scores), np.mean(losses)]   
+        metric = [np.mean(f1_scores), np.mean(losses)/GTs.shape[0]]   
         
     return metric
 
@@ -95,7 +93,9 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             - best_model: f1-score of the best model trained. (Calculated on validation dataset) 
             - model_saved: The best model trained.
     """
-        
+    
+    device = get_training_device()
+
     np.random.seed(seed) 
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -113,11 +113,15 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
     val_eps = []
     val_f1s = []
     val_loss = []
+
+    train_eps = []
+    train_f1s = []
+    train_loss = []
     
     for epoch in range(number_epochs):
     
-        #Validation phase:
-        metric_val = evaluate(network, val_loader, loss_function, Love)
+        #Validation phase 1:
+        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
 
         val_eps.append(epoch)
         val_f1s.append(metric_val[0])
@@ -125,10 +129,6 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             
         #Training phase:
         network.train() #indicate to the network that we enter training mode
-
-        train_eps = []
-        train_f1s = []
-        train_loss = []
         
         for i, Data in enumerate(train_loader): # Iterate over the training dataset and do the backward propagation.
             if Love:
@@ -160,8 +160,15 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             
             if plot:
                 train_eps.append(epoch+i/len(train_loader))
-                train_f1s.append(mean(accuracy_train))
-                train_loss.append(mean(loss_train))
+                train_f1s.append(np.mean(accuracy_train))
+                train_loss.append(np.mean(loss_train))
+
+        #Validation phase 1:
+        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
+
+        val_eps.append(epoch + 1)
+        val_f1s.append(metric_val[0])
+        val_loss.append(metric_val[1])
         
         if epoch == 0:
             best_model = metric_val[0]
@@ -178,7 +185,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
     
     
     if plot:
-        fig, ax = plt.subplot(1,1, figsize = (7,5))
+        fig, ax = plt.subplots(1,1, figsize = (7,5))
 
         ax.plot(x = train_eps, y = train_f1s, label = 'Training F1-Score', ls= '--', color = 'r')
         ax.plot(x = train_eps, y = train_loss, label = 'Training Loss', ls = '-', color = 'r')
