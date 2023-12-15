@@ -187,14 +187,14 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
     if plot:
         fig, ax = plt.subplots(1,1, figsize = (7,5))
 
-        ax.plot(x = train_eps, y = train_f1s, label = 'Training F1-Score', ls= '--', color = 'r')
-        ax.plot(x = train_eps, y = train_loss, label = 'Training Loss', ls = '-', color = 'r')
+        ax.plot(train_eps, train_f1s, label = 'Training F1-Score', ls= '--', color = 'r')
+        ax.plot(train_eps, train_loss, label = 'Training Loss', ls = '-', color = 'r')
 
-        ax.plot(x = val_eps, y = val_f1s, label = 'Validation F1-Score', ls = '--', color = 'b')
-        ax.plot(x = val_eps, y = val_loss, label = 'Validation Loss', ls = '-', color = 'b')
+        ax.plot(val_eps, val_f1s, label = 'Validation F1-Score', ls = '--', color = 'b')
+        ax.plot(val_eps, val_loss, label = 'Validation Loss', ls = '-', color = 'b')
 
         plt.legend()
 
-        fig.savefig('Training.png', dpi = 200)
+        fig.savefig('TrainingLoop.png', dpi = 200)
         
     return best_model, model_saved

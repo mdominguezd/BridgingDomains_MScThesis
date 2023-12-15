@@ -27,7 +27,7 @@ transforms = get_transforms()
 VI = False
 normalization = 'Linear_1_99'
 
-# Build Dataset class
+# Build Dataloaders
 train_loader, val_loader, test_loader = get_DataLoaders('TanzaniaSplit1', batch_size, transforms, normalization, VI)
 
 n_channels = next(enumerate(train_loader))[1][0].shape[1]
@@ -40,7 +40,7 @@ network = UNet(n_channels, n_classes,  bilinear, starter_channels, up_layer = 4)
 f1_val, network_trained = training_loop(network, train_loader, val_loader, learning_rate, starter_channels, momentum, number_epochs, loss_function)
 
 # Evaluate the model
-f1_test, loss_test = evaluate(network_trained, test_loader, loss_function, BinaryF1Score(), Love = False)
+# f1_test, loss_test = evaluate(network_trained, test_loader, loss_function, BinaryF1Score(), Love = False)
 
 
 
