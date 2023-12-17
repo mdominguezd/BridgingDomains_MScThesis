@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms.v2 as T
 from skimage import io
 import numpy as np
+from torch.utils.data import random_split
 
 def calculate_percentiles(img_folder, samples = 400):
     """
@@ -32,17 +33,27 @@ def calculate_percentiles(img_folder, samples = 400):
     
     return vals
 
-def get_DataLoaders(dir, batch_size, transform, normalization, VI):
+def get_DataLoaders(dir, batch_size, transform, normalization, VI, split_size = None):
     """
         Function to get the training, validation and test data loader for a specific dataset.
 
         Inputs:
-        
+            - dir: Directory with the name of the data to be used.
+            - batch_size: Size of the batches used for training.
+            - transform: torch composition of transforms used for image augmentation.
+            - normaliztion: Type of normalization used.
+            - VI: Boolean indicating if NDVI and NDWI are also used in training.
+            - split_size: Float between 0 and 1 indicating the fraction of dataset to be used (Especifically useful for HP tuning)
     """
     train_DS = Img_Dataset(dir, transform, norm = normalization, VI=VI)
     val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI)
     test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI)
-    
+
+    if split_size != None:
+        train_DS, l = random_split(train_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
+        val_DS, l = random_split(val_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
+        test_DS, l = random_split(test_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
+        
     train_loader = torch.utils.data.DataLoader(dataset=train_DS, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(dataset=val_DS, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(dataset=test_DS, batch_size=batch_size, shuffle=False)
