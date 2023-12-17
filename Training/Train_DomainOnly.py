@@ -6,6 +6,7 @@ import torch
 from torchmetrics.classification import BinaryF1Score
 import numpy as np
 import matplotlib.pyplot as plt
+plt.style.use('ggplot')
 
 def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False):
     """
@@ -179,12 +180,13 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             model_saved = network
         else:
             if best_model < metric_val[0]:
+                best_model = metric_val[0]
                 torch.save(network, 'BestModel.pt')
                 model_saved = network
         
         if (epoch//4 == epoch/4):
-            #After 4 epochs, reduce the learning rate by a factor of 0.5
-            optimizer.param_groups[0]['lr'] *= 0.5
+            #After 4 epochs, reduce the learning rate by a factor of 0.2
+            optimizer.param_groups[0]['lr'] *= 0.2
     
     
     if plot:
@@ -195,6 +197,10 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
 
         ax.plot(val_eps, val_f1s, label = 'Validation F1-Score', ls = '--', color = 'b')
         ax.plot(val_eps, val_loss, label = 'Validation Loss', ls = '-', color = 'b')
+        
+        ax.text(val_eps[np.argmax(val_f1s)], np.max(val_f1s), str(np.max(val_f1s)))
+
+        ax.set_xlabel("Epoch")
 
         plt.legend()
 

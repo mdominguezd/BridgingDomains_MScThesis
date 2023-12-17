@@ -16,7 +16,7 @@ from Models.Loss_Functions import FocalLoss
 print("Unziping downloaded data...")
 Unzip_DS.UnzipFolders("Tanzania")
 Unzip_DS.UnzipFolders("IvoryCoast")
-print("Folders have been unzipped.")
+print("Folders have been unzipped.\n")
 
 # Hyperparameters
 batch_size = 6
@@ -34,7 +34,7 @@ normalization = 'Linear_1_99'
 # Build Dataloaders
 print("Creating dataloaders...")
 train_loader, val_loader, test_loader = get_DataLoaders('TanzaniaSplit1', batch_size, transforms, normalization, VI)
-print("Dataloaders created.")
+print("Dataloaders created.\n")
 
 n_channels = next(enumerate(train_loader))[1][0].shape[1]
 n_classes = 2
@@ -46,10 +46,11 @@ network = UNet(n_channels, n_classes,  bilinear, starter_channels, up_layer = 4)
 print("Starting training...")
 start = time.time()
 f1_val, network_trained = training_loop(network, train_loader, val_loader, learning_rate, starter_channels, momentum, number_epochs, loss_function)
-print("Network trained. Took ", time.time() - start, 's')
+print("Network trained. Took ", round(time.time() - start, 0), 's\n')
 
 # Evaluate the model
 f1_test, loss_test = evaluate(network_trained, test_loader, loss_function, BinaryF1Score(), Love = False)
 
-
+print("F1_Validation:", f1_val)
+print("F1_Test:      ", f1_test)
 
