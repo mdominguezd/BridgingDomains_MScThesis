@@ -48,19 +48,19 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
             GTs = GTs.type(torch.long).squeeze().to(device)
             pred = net(inputs)
         
-            loss = loss_function(pred, GTs)
-        
             f1 = accu_function.to(device)
         
             if (pred.max(1)[1].shape != GTs.shape):
                 GTs = GTs[None, :, :]
+
+            loss = loss_function(pred, GTs)/GTs.shape[0]
         
             f1_score = f1(pred.max(1)[1], GTs)
             
             f1_scores.append(f1_score.to('cpu').numpy())
             losses.append(loss.to('cpu').numpy())
 
-        metric = [np.mean(f1_scores), np.mean(losses)/GTs.shape[0]]   
+        metric = [np.mean(f1_scores), np.mean(losses)]   
         
     return metric
 
@@ -146,6 +146,9 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             #Set the gradients of the model to 0.
             optimizer.zero_grad()
             pred = network(inputs)
+
+            if (pred.max(1)[1].shape != GTs.shape):
+                GTs = GTs[None, :, :]
             
             loss = loss_function(pred, GTs)
             
