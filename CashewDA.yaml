@@ -16,3 +16,5 @@ dependencies:
   - pip:
     - torchmetrics=1.2.1 
     - rioxarray=0.15.0 
+    - seaborn=0.13.0
+    - torchgeo=0.5.1

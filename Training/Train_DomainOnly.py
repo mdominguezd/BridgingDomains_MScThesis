@@ -93,6 +93,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
         Output:
             - best_model: f1-score of the best model trained. (Calculated on validation dataset) 
             - model_saved: The best model trained.
+            - spearman: Spearman correlation calculated for training progress (High positive value will indicate positive learning)
     """
     
     device = get_training_device()
@@ -161,11 +162,10 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             optimizer.step()
             loss_train.append(loss.item()/GTs.shape[0])
             accuracy_train.append(overall_accuracy.item())
-            
-            if plot:
-                train_eps.append(epoch+i/len(train_loader))
-                train_f1s.append(np.mean(accuracy_train))
-                train_loss.append(np.mean(loss_train))
+
+            train_eps.append(epoch+i/len(train_loader))
+            train_f1s.append(np.mean(accuracy_train))
+            train_loss.append(np.mean(loss_train))
 
         #Validation phase 1:
         metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
@@ -186,8 +186,9 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
         
         if (epoch//4 == epoch/4):
             #After 4 epochs, reduce the learning rate by a factor of 0.2
-            optimizer.param_groups[0]['lr'] *= 0.2
-    
+            optimizer.param_groups[0]['lr'] *= 0.5
+
+    spearman = stats.spearmanr(train_eps, train_f1s)[0]
     
     if plot:
         fig, ax = plt.subplots(1,1, figsize = (7,5))
@@ -206,4 +207,4 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
 
         fig.savefig('TrainingLoop.png', dpi = 200)
         
-    return best_model, model_saved
+    return best_model, model_saved, spearman

@@ -13,7 +13,7 @@ from Models.U_Net import UNet
 
 from Models.Loss_Functions import FocalLoss
 
-def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI):
+def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, split_size = 0.1):
     """
         Function to perform Hyperparameter tuning for the networks to be trained.
 
@@ -40,10 +40,10 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI):
         for lr in LR:
             for stch in STCh:
                 for mu in MU:
-                    for bi in BI:
+                    for bi in Bi:
                         for g in gamma:
                             for vi in VI:
-                                train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, split_size = 0.1)
+                                train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, split_size = split_size)
                                 n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number fomr actual data
                                 n_classes = 2
     
@@ -53,15 +53,13 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI):
                                 network = UNet(n_channels, n_classes,  bi, stch, up_layer = 4)
 
                                 start = time.time()
-                                f1_val, network_trained = training_loop(network, train_loader, val_loader, lr, stch, mu, epochs, loss_function)
+                                f1_val, network_trained, spearman = training_loop(network, train_loader, val_loader, lr, stch, mu, epochs, loss_function, plot = True)
                                 end = time.time()
 
-                                rows.append([bs, lr, stch, mu, bi, g, vi, f1_val, end-start])
+                                rows.append([bs, lr, stch, mu, bi, g, vi, f1_val, end-start, spearman])
 
                                 HP_values = pd.DataFrame(rows)
-                                HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'ValF1Score', 'Training time']
+                                HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'ValF1Score', 'Training time', 'Training rho']
                                 HP_values.to_csv('TempHyperParamTuning_'+dir+'.csv')
-
-    top_5 = HP_values.sort_values('ValF1Score', ascending = False).head(5)
     
-    return top_5
+    return HP_values

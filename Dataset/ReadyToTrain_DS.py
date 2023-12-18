@@ -9,6 +9,7 @@ import torchvision.transforms.v2 as T
 from skimage import io
 import numpy as np
 from torch.utils.data import random_split
+from torchgeo.datasets import LoveDA
 
 def calculate_percentiles(img_folder, samples = 400):
     """
@@ -32,6 +33,20 @@ def calculate_percentiles(img_folder, samples = 400):
     vals = quantiles/len(img_sample)
     
     return vals
+
+def get_LOVE_DataLoaders(domain = ['urban', 'rural']):
+    """
+        Function to get the loaders for LoveDA dataset.
+    """
+    train_DS = LoveDA('LoveDA', split = 'train', scene = domain, download = True)
+    test_DS = LoveDA('LoveDA', split = 'test', scene = domain, download = True)
+    validation_DS = LoveDA('LoveDA', split = 'val', scene = domain, download = True)
+    
+    train_loader = torch.utils.data.DataLoader(dataset=train_DS, batch_size=batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(dataset=validation_DS, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(dataset=test_DS, batch_size=batch_size, shuffle=False)
+
+    return train_loader, val_loader, test_loader
 
 def get_DataLoaders(dir, batch_size, transform, normalization, VI, split_size = None):
     """
