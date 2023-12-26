@@ -72,6 +72,50 @@ class OutConv(nn.Module):
         x = self.conv(x)
         return x
 
+####### SPECIFIC FOR UNET-DANN ########
+
+class GradientReversal(Function):
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.save_for_backward(x, alpha)
+        return x
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_input = None
+        _, alpha = ctx.saved_tensors
+        if ctx.needs_input_grad[0]:
+            grad_input = - alpha*grad_output
+        return grad_input, None
+
+revgrad = GradientReversal.apply
+
+class GradientReversal(nn.Module):
+    def __init__(self, alpha = 1):
+        super().__init__()
+        self.alpha = torch.tensor(alpha, requires_grad=False)
+
+    def forward(self, x):
+        return revgrad(x, self.alpha)
+
+class OutDisc(nn.Module):
+    def __init__(self, in_feat, mid_layers):
+        super(OutDisc, self).__init__()
+        self.D = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=in_feat, out_features=mid_layers, bias = False),
+            nn.ReLU(),
+            nn.Linear(in_features = mid_layers, out_features = mid_layers//2, bias = False),
+            nn.ReLU(),
+            nn.Linear(in_features = mid_layers//2, out_features = 1, bias = False)
+        )
+
+    def forward(self, x):
+        return self.D(x)
+
+############ OPTIONALS ##############
+
+
 ### Possible attention block to be added to unet (REFERENCE ????)
 class Attention_block(nn.Module):
     def __init__(self,F_g,F_l,F_int):

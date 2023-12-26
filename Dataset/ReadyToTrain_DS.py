@@ -34,7 +34,7 @@ def calculate_percentiles(img_folder, samples = 400):
     
     return vals
 
-def get_LOVE_DataLoaders(domain = ['urban', 'rural']):
+def get_LOVE_DataLoaders(domain = ['urban', 'rural'], batch_size = 8):
     """
         Function to get the loaders for LoveDA dataset.
     """
@@ -48,7 +48,7 @@ def get_LOVE_DataLoaders(domain = ['urban', 'rural']):
 
     return train_loader, val_loader, test_loader
 
-def get_DataLoaders(dir, batch_size, transform, normalization, VI, split_size = None):
+def get_DataLoaders(dir, batch_size, transform, normalization, VI, train_split_size = None, val_split_size = None):
     """
         Function to get the training, validation and test data loader for a specific dataset.
 
@@ -64,10 +64,12 @@ def get_DataLoaders(dir, batch_size, transform, normalization, VI, split_size = 
     val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI)
     test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI)
 
-    if split_size != None:
-        train_DS, l = random_split(train_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
-        val_DS, l = random_split(val_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
-        test_DS, l = random_split(test_DS, [split_size, 1-split_size], generator=torch.Generator().manual_seed(8))
+    if train_split_size != None:
+        if val_split_size == None:
+            val_split_size = train_split_size
+        train_DS, l = random_split(train_DS, [train_split_size, 1-train_split_size], generator=torch.Generator().manual_seed(8))
+        val_DS, l = random_split(val_DS, [val_split_size, 1-val_split_size], generator=torch.Generator().manual_seed(8))
+        test_DS, l = random_split(test_DS, [val_split_size, 1-val_split_size], generator=torch.Generator().manual_seed(8))
         
     train_loader = torch.utils.data.DataLoader(dataset=train_DS, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(dataset=val_DS, batch_size=batch_size, shuffle=False)

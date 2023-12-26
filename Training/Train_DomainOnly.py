@@ -1,12 +1,17 @@
 # import sys
 # append a new directory to sys.path
 # sys.path.append('../')
+import time
 from collections import deque
 import torch
 from torchmetrics.classification import BinaryF1Score
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import stats
 plt.style.use('ggplot')
+
+from Dataset.ReadyToTrain_DS import get_DataLoaders
+from Models.U_Net import UNet
 
 def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False):
     """
@@ -38,8 +43,8 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
                 GTs = Data['mask']
                 
                 # Make it a binary problem only detecting one class
-                GTs[GTs != 2] = 0
-                GTs[GTs == 2] = 1
+                # GTs[GTs != 2] = 0
+                # GTs[GTs == 2] = 1
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -65,12 +70,11 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
         
     return metric
 
-
 def get_training_device():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def training_loop(network, train_loader, val_loader, learning_rate, starter_channels, momentum, number_epochs, loss_function, bilinear = True, n_channels = 4, n_classes = 2, plot = True, accu_function = BinaryF1Score(), seed = 8, Love = False):
+def training_loop(network, train_loader, val_loader, learning_rate, momentum, number_epochs, loss_function, decay = 0.8, bilinear = True, n_channels = 4, n_classes = 2, plot = True, accu_function = BinaryF1Score(), seed = 8, Love = False):
     """
         Function to train the Neural Network.
 
@@ -82,6 +86,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             - momentum: Momentum used during training.
             - number_epochs: Number of training epochs.
             - loss_function: Function to calculate loss
+            - decay: Factor in which learning rate decays.
             - bilinear: Boolean to decide the upscaling method (If True Bilinear if False Transpose convolution. Default: True)
             - n_channels: Number of initial channels (Defalut 4 [Planet])
             - n_classes: Number of classes that will be predicted (Default 2 [Binary segmentation])
@@ -136,8 +141,8 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
             if Love:
                 inputs = Data['image']
                 GTs = Data['mask']
-                GTs[GTs != 2] = 0
-                GTs[GTs == 2] = 1
+                # GTs[GTs != 2] = 0
+                # GTs[GTs == 2] = 1
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -185,10 +190,10 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
                 model_saved = network
         
         if (epoch//4 == epoch/4):
-            #After 4 epochs, reduce the learning rate by a factor of 0.2
-            optimizer.param_groups[0]['lr'] *= 0.5
+            #After 4 epochs, reduce the learning rate by a factor 
+            optimizer.param_groups[0]['lr'] *= decay
 
-    spearman = stats.spearmanr(train_eps, train_f1s)[0]
+    spearman = stats.spearmanr(val_eps, val_f1s)[0]
     
     if plot:
         fig, ax = plt.subplots(1,1, figsize = (7,5))
@@ -206,5 +211,79 @@ def training_loop(network, train_loader, val_loader, learning_rate, starter_chan
         plt.legend()
 
         fig.savefig('TrainingLoop.png', dpi = 200)
+
+    if val_eps[np.argmax(val_f1s)] == 0:
+        no_learning = True
+    else:
+        no_learning = False
         
-    return best_model, model_saved, spearman
+    return best_model, model_saved, spearman, no_learning
+
+
+def train_3fold_DomainOnly(domain, DS_args, network_args, training_loop_args, eval_args):
+    """
+        Function to run all Domain Only training dfor the three folds. 
+
+        Input:
+            - domain: String with the prefix of the domain to use for training. (Can be either Tanzania or IvoryCoast)
+            - DS_args: List with all the arguments related to the dataset itself (e.g. batch_size, transforms, normalization and use of vegetation indices)
+            - network_args: List with arguments used for the network creation (n_classes, bilinear, starter channels, up_layer)
+            - training_loop_args: List with all the arguments needed to run the training loop (for more information check training_loop funtion.)
+            - eval_args: List with arguments to evaluate the trained network on the test dataset.
+
+        Output:
+            - Stats: Mean and standard deviation of the validation and test accuracy values for the domain only training on the three folds.
+    """
+
+    folds = 3
+
+    fscore = []
+    
+    # For 3-fold Cross-Validation
+    for i in range(folds):
+        
+        # Build Dataloaders
+        print("Creating dataloaders...")
+        train_loader, val_loader, test_loader = get_DataLoaders(domain+'Split'+str(i+1), *DS_args)
+        print("Dataloaders created.\n")
+        
+        n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number from actual data
+        n_classes = 2
+        
+        # Define the network
+        network = UNet(n_channels, *network_args)
+        
+        # Train the model
+        print("Starting training...")
+        start = time.time()
+        f1_val, network_trained, spearman, no_L = training_loop(network, train_loader, val_loader, *training_loop_args)
+        print("Network trained. Took ", round(time.time() - start, 0), 's\n')
+
+        if i == 0:
+            best_network = network_trained
+            torch.save(best_network, 'OverallBestModel'+domain+'.pt')
+            best_f1 = f1_val
+        else:
+            if f1_val > best_f1:
+                best_network = network_trained
+                torch.save(best_network, 'OverallBestModel'+domain+'.pt')
+                best_f1 = f1_val
+        
+        # Evaluate the model
+        f1_test, loss_test = evaluate(network_trained, test_loader, *eval_args)
+        
+        print("F1_Validation:", f1_val)
+        print("F1_Test:      ", f1_test)
+    
+        fscore.append([f1_val, f1_test])
+    
+    fscore
+    
+    mean = np.mean(fscore, axis = 0)
+    std = np.std(fscore, axis = 0)
+
+    stats = [mean, std]
+
+    return stats
+
+    

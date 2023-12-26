@@ -13,7 +13,7 @@ from Models.U_Net import UNet
 
 from Models.Loss_Functions import FocalLoss
 
-def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, split_size = 0.1):
+def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, decay, tr_size = 0.15, val_size = 0.75):
     """
         Function to perform Hyperparameter tuning for the networks to be trained.
 
@@ -32,7 +32,7 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, split_size = 0.1):
 
     transforms = get_transforms()
     normalization = 'Linear_1_99'
-    epochs = 15
+    epochs = 12
 
     rows = []
 
@@ -43,23 +43,24 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, split_size = 0.1):
                     for bi in Bi:
                         for g in gamma:
                             for vi in VI:
-                                train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, split_size = split_size)
-                                n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number fomr actual data
-                                n_classes = 2
+                                for de in decay:
+                                    train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, train_split_size = tr_size, val_split_size = val_size)
+                                    n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number fomr actual data
+                                    n_classes = 2
+        
+                                    loss_function = FocalLoss(gamma = g)
+        
+                                    # Define the network
+                                    network = UNet(n_channels, n_classes,  bi, stch, up_layer = 4)
     
-                                loss_function = FocalLoss(gamma = g)
+                                    start = time.time()
+                                    f1_val, network_trained, spearman, no_l = training_loop(network, train_loader, val_loader, lr, stch, mu, epochs, loss_function, decay = de, plot = False)
+                                    end = time.time()
     
-                                # Define the network
-                                network = UNet(n_channels, n_classes,  bi, stch, up_layer = 4)
-
-                                start = time.time()
-                                f1_val, network_trained, spearman = training_loop(network, train_loader, val_loader, lr, stch, mu, epochs, loss_function, plot = True)
-                                end = time.time()
-
-                                rows.append([bs, lr, stch, mu, bi, g, vi, f1_val, end-start, spearman])
-
-                                HP_values = pd.DataFrame(rows)
-                                HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'ValF1Score', 'Training time', 'Training rho']
-                                HP_values.to_csv('TempHyperParamTuning_'+dir+'.csv')
+                                    rows.append([bs, lr, stch, mu, bi, g, vi, de, f1_val, end-start, spearman, no_l])
+    
+                                    HP_values = pd.DataFrame(rows)
+                                    HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'decay', 'ValF1Score', 'Training time', 'Training rho', 'No_L']
+                                    HP_values.to_csv('TempHyperParamTuning_'+dir+'.csv')
     
     return HP_values
