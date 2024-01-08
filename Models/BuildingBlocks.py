@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
+from torch.autograd import Function
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -39,8 +40,9 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels, bilinear=True, attention = False):
         super().__init__()
+        self.attention = attention
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
@@ -49,17 +51,24 @@ class Up(nn.Module):
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
+        
+        if attention:
+            self.attn = Attention_block(in_channels//2, in_channels//2, in_channels//4)
 
     def forward(self, x1, x2):
-        x1 = self.up(x1)
+        a1 = self.up(x1)
         
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
-
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+        diffY = x2.size()[2] - a1.size()[2]
+        diffX = x2.size()[3] - a1.size()[3]
+        
+        a1 = F.pad(a1, [diffX // 2, diffX - diffX // 2,
                         diffY // 2, diffY - diffY // 2])
+        
+        if self.attention:
+            x2 = self.attn(g=a1,x=x2)
 
-        x = torch.cat([x2, x1], dim=1)
+        x = torch.cat([x2, a1], dim=1)
+        
         return self.conv(x)
 
 

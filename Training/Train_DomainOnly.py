@@ -9,9 +9,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import stats
 plt.style.use('ggplot')
+from tqdm import tqdm
 
-from Dataset.ReadyToTrain_DS import get_DataLoaders
+from Dataset.ReadyToTrain_DS import get_DataLoaders, get_LOVE_DataLoaders
 from Models.U_Net import UNet
+
+def get_training_device():
+    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False):
     """
@@ -41,10 +45,6 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
             if Love:
                 inputs = Data['image']
                 GTs = Data['mask']
-                
-                # Make it a binary problem only detecting one class
-                # GTs[GTs != 2] = 0
-                # GTs[GTs == 2] = 1
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -70,11 +70,7 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
         
     return metric
 
-def get_training_device():
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-
-def training_loop(network, train_loader, val_loader, learning_rate, momentum, number_epochs, loss_function, decay = 0.8, bilinear = True, n_channels = 4, n_classes = 2, plot = True, accu_function = BinaryF1Score(), seed = 8, Love = False):
+def training_loop(network, train_loader, val_loader, learning_rate, momentum, number_epochs, loss_function, accu_function = BinaryF1Score(),Love = False, decay = 0.8, bilinear = True, n_channels = 4, n_classes = 2, plot = True, seed = 8):
     """
         Function to train the Neural Network.
 
@@ -85,15 +81,15 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             - starter_channels: Starting number of channels in th U-Net
             - momentum: Momentum used during training.
             - number_epochs: Number of training epochs.
-            - loss_function: Function to calculate loss
+            - loss_function: Function to calculate loss.
+            - accu_function: Function to calculate accuracy (Default: BinaryF1Score).
+            - Love: Boolean to decide between training with LoveDA dataset or our own dataset.
             - decay: Factor in which learning rate decays.
             - bilinear: Boolean to decide the upscaling method (If True Bilinear if False Transpose convolution. Default: True)
             - n_channels: Number of initial channels (Defalut 4 [Planet])
             - n_classes: Number of classes that will be predicted (Default 2 [Binary segmentation])
             - plot: Boolean to decide if training loop should be plotted or not.
-            - accu_function: Function to calculate accuracy (Default: BinaryF1Score)
             - seed: Seed that will be used for generation of random values.
-            - Love: Boolean to decide between training with LoveDA dataset or our own dataset.
 
         Output:
             - best_model: f1-score of the best model trained. (Calculated on validation dataset) 
@@ -125,7 +121,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
     train_f1s = []
     train_loss = []
     
-    for epoch in range(number_epochs):
+    for epoch in tqdm(range(number_epochs), desc = 'Training model'):
     
         #Validation phase 1:
         metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
@@ -141,8 +137,6 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             if Love:
                 inputs = Data['image']
                 GTs = Data['mask']
-                # GTs[GTs != 2] = 0
-                # GTs[GTs == 2] = 1
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -159,14 +153,14 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             
             loss = loss_function(pred, GTs)
             
-            f1 = accu_function.to(device)
-            overall_accuracy = f1(pred.max(1)[1], GTs)
-            #We accumulate the gradients...
+            accu = accu_function.to(device)
+            accu_ = accu(pred.max(1)[1], GTs)
+
             loss.backward()
-            #...and we update the parameters according to the gradients.
+
             optimizer.step()
             loss_train.append(loss.item()/GTs.shape[0])
-            accuracy_train.append(overall_accuracy.item())
+            accuracy_train.append(accu_.item())
 
             train_eps.append(epoch+i/len(train_loader))
             train_f1s.append(np.mean(accuracy_train))
@@ -285,5 +279,40 @@ def train_3fold_DomainOnly(domain, DS_args, network_args, training_loop_args, ev
     stats = [mean, std]
 
     return stats
+
+####################################################################
+########################### For LoveDA #############################
+####################################################################
+
+def train_LoveDA_DomainOnly(domain, DS_args, network_args, training_loop_args):
+    """
+        Function to train the domain only models for the LoveDA dataset.
+
+        Inputs:
+            - domain: List with the scene parameter for the LoveDa dataset. It can include 'rural' and/or 'urban'.
+            - DS_args: List with all the arguments related to the dataset itself (e.g. batch_size, transforms)
+            - network_args: List with arguments used for the network creation (n_classes, bilinear, starter channels, up_layer)
+            - training_loop_args: List with all the arguments needed to run the training loop (for more information check training_loop funtion.)
+
+        Outputs:
+            - validation_accuracy: Accuracy score for validation dataset.
+            - network_trained: Neural network that has been trained.
+    """
+
+    # Get DataLoaders
+    train_loader, val_loader, test_loader = get_LOVE_DataLoaders(domain, *DS_args)
+
+    # Get number of channels from actual data
+    n_channels = next(enumerate(train_loader))[1]['image'].shape[1] 
+
+    # Define the network
+    network = UNet(n_channels, *network_args)
+
+    # Train the network
+    accu_val, network_trained, spearman, no_l = training_loop(network, train_loader, val_loader, *training_loop_args)
+
+    return accu_val, network_trained
+
+
 
     

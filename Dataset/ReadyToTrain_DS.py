@@ -34,21 +34,47 @@ def calculate_percentiles(img_folder, samples = 400):
     
     return vals
 
-def get_LOVE_DataLoaders(domain = ['urban', 'rural'], batch_size = 8):
+def get_LOVE_DataLoaders(domain = ['urban', 'rural'], batch_size = 4, transforms = None, only_get_DS = False, train_split_size = None, val_split_size = None):
     """
         Function to get the loaders for LoveDA dataset.
+
+        Inputs:
+            - domain: List with the scene parameter for the LoveDa dataset. It can include 'rural' and/or 'urban'.
+            - batch_size: Number of images per batch.
+            - transforms: Image augmentations that will be considered.
+            - train_split_size: Amount of images from training split that will be considered. (Float between 0 and 1)
+            - val_split_size: Amount of images from validation split that will be considered. (Float between 0 and 1)
+            - only_get_DS: Boolean for only getting datasets instead of dataloaders.
+
+        Output:
+            - train_loader: Training torch LoveDA data loader
+            - val_loader: Validation torch LoveDA data loader
+            - test_loader: Test torch LoveDA data loader
     """
-    train_DS = LoveDA('LoveDA', split = 'train', scene = domain, download = True)
+    if transforms != None:
+        train_DS = LoveDA('LoveDA', split = 'train', scene = domain, download = True, transforms = transforms)
+    else:
+        train_DS = LoveDA('LoveDA', split = 'train', scene = domain, download = True)
     test_DS = LoveDA('LoveDA', split = 'test', scene = domain, download = True)
-    validation_DS = LoveDA('LoveDA', split = 'val', scene = domain, download = True)
+    val_DS = LoveDA('LoveDA', split = 'val', scene = domain, download = True)
+
+    if train_split_size != None:
+        if val_split_size == None:
+            val_split_size = train_split_size
+        train_DS, l = random_split(train_DS, [train_split_size, 1-train_split_size], generator=torch.Generator().manual_seed(8))
+        val_DS, l = random_split(val_DS, [val_split_size, 1-val_split_size], generator=torch.Generator().manual_seed(8))
+        test_DS, l = random_split(test_DS, [val_split_size, 1-val_split_size], generator=torch.Generator().manual_seed(8))
     
     train_loader = torch.utils.data.DataLoader(dataset=train_DS, batch_size=batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(dataset=validation_DS, batch_size=batch_size, shuffle=False)
+    val_loader = torch.utils.data.DataLoader(dataset=val_DS, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(dataset=test_DS, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, test_loader
+    if only_get_DS:
+        return train_DS, val_DS, test_DS
+    else:
+        return train_loader, val_loader, test_loader
 
-def get_DataLoaders(dir, batch_size, transform, normalization, VI, train_split_size = None, val_split_size = None):
+def get_DataLoaders(dir, batch_size, transform, normalization, VI, only_get_DS = False, train_split_size = None, val_split_size = None):
     """
         Function to get the training, validation and test data loader for a specific dataset.
 
@@ -59,7 +85,13 @@ def get_DataLoaders(dir, batch_size, transform, normalization, VI, train_split_s
             - normaliztion: Type of normalization used.
             - VI: Boolean indicating if NDVI and NDWI are also used in training.
             - split_size: Float between 0 and 1 indicating the fraction of dataset to be used (Especifically useful for HP tuning)
+            - only_get_DS: Boolean for only getting datasets instead of dataloaders.
+        Output:
+            - train_loader: Training torch LoveDA data loader
+            - val_loader: Validation torch LoveDA data loader
+            - test_loader: Test torch LoveDA data loader
     """
+    
     train_DS = Img_Dataset(dir, transform, norm = normalization, VI=VI)
     val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI)
     test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI)
@@ -75,7 +107,10 @@ def get_DataLoaders(dir, batch_size, transform, normalization, VI, train_split_s
     val_loader = torch.utils.data.DataLoader(dataset=val_DS, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(dataset=test_DS, batch_size=batch_size, shuffle=False)
     
-    return train_loader, val_loader, test_loader
+    if only_get_DS:
+        return train_DS, val_DS, test_DS
+    else:
+        return train_loader, val_loader, test_loader
     
 # Default values calculated on cashew crops of both domains.
 quant_CIV = np.array([[217.0,	528.0,	389.0,	2162.0],
@@ -196,3 +231,47 @@ class Img_Dataset(Dataset):
             GT, img = self.transform(GT, img)
 
         return img, GT
+
+
+def get_DA_DataSets(batch_size, transform, normalization, VI, source = 'IvoryCoast', target = 'Tanzania', train_split_size = None, val_split_size = None):
+    """
+        Function to get the DataLoaders and the number of batch iterations for Domain Adaptation method.
+    """
+    # Get the source dataset
+    source_train_DS = Img_Dataset(source, transform, norm = normalization, VI = VI)
+    source_val_DS = Img_Dataset(source, split = 'Validation', norm = normalization, VI = VI)
+    source_test_DS = Img_Dataset(source, split = 'Test', norm = normalization, VI = VI)
+
+    # Get the target dataset
+    target_train_DS = Img_Dataset(target, transform, norm = normalization, VI = VI)
+    target_val_DS = Img_Dataset(target, split = 'Validation', norm = normalization, VI = VI)
+    target_test_DS = Img_Dataset(target, split = 'Test', norm = normalization, VI  = VI)
+
+    # Half of the batch will be composed of source images and the other half of target images.
+    source_n_batches = np.ceil(len(source_train_DS)/(batch_size/2))
+    target_n_batches = np.ceil(len(target_train_DS)/(batch_size/2))
+
+    n_batches = min(source_n_batches, target_n_batches)
+
+    # Calculate total number of batch iteration with which the model will be trained.
+    batch_iterations = np.ceil(max(source_n_batches, target_n_batches) / n_batches)
+    
+    # # Create data loaders
+    # source_train_loader = torch.utils.data.DataLoader(dataset=source_train_DS, batch_size=batch_size//2, shuffle=True)
+    
+    # # Create data loaders
+    # target_train_loader = torch.utils.data.DataLoader(dataset=target_train_DS, batch_size=batch_size//2, shuffle=True)
+    
+    # # Validation and test dataloaders
+    # source_val_loader = torch.utils.data.DataLoader(dataset=source_val_DS, batch_size=batch_size, shuffle=False)
+    # source_test_loader = torch.utils.data.DataLoader(dataset=source_test_DS, batch_size=batch_size//2, shuffle=False)
+    # target_val_loader = torch.utils.data.DataLoader(dataset=target_val_DS, batch_size=batch_size, shuffle=False)
+    # target_test_loader = torch.utils.data.DataLoader(dataset=target_test_DS, batch_size=batch_size//2, shuffle=False)
+
+    source_DLs = [source_train_loader, source_val_loader, source_test_loader]
+    target_DLs = [target_train_loader, target_val_loader, target_test_loader]
+
+    return source_DLs, target_DLs, batch_iterations
+    
+    
+    
