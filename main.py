@@ -70,34 +70,34 @@ from Models.Loss_Functions import FocalLoss
 # Stats = train_3fold_DomainOnly(domain, DS_args, network_args, training_args, eval_args)
 
 #### DOMAIN ADAPTATION ####
-source_domain = 'IvoryCoastSplit1'
-target_domain = 'TanzaniaSplit1'
+# source_domain = 'IvoryCoastSplit1'
+# target_domain = 'TanzaniaSplit1'
 
-## Related to DS
-batch_size = 8
-transforms = get_transforms()
-normalization = 'Linear_1_99'
-VI = False
+# ## Related to DS
+# batch_size = 8
+# transforms = get_transforms()
+# normalization = 'Linear_1_99'
+# VI = False
 
-## Related to the network
-n_classes = 2
-bilinear = True
-starter_channels = 16
-up_layer = 4
-attention = False
+# ## Related to the network
+# n_classes = 2
+# bilinear = True
+# starter_channels = 16
+# up_layer = 4
+# attention = False
 
-DS_args = [batch_size, transforms, normalization, VI, True]
-network_args = [n_classes, bilinear, starter_channels, up_layer, attention]
+# DS_args = [batch_size, transforms, normalization, VI, True]
+# network_args = [n_classes, bilinear, starter_channels, up_layer, attention]
 
-lr = 0.005
-momentum = 0.4
-epochs = 5
-Love = False
-seg_loss_function = FocalLoss(gamma = 0.7)
-domain_loss_function = torch.nn.BCEWithLogitsLoss()
-accu_function = BinaryF1Score()
+# lr = 0.005
+# momentum = 0.4
+# epochs = 5
+# Love = False
+# seg_loss_function = FocalLoss(gamma = 0.7)
+# domain_loss_function = torch.nn.BCEWithLogitsLoss()
+# accu_function = BinaryF1Score()
 
-best_model_accuracy, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
+# best_model_accuracy, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
 
 ####################################################################
 ########################### For LoveDA #############################
@@ -148,36 +148,36 @@ best_model_accuracy, best_network = DANN_training_loop(source_domain, target_dom
 # accu, network_trained = train_LoveDA_DomainOnly(domain, DS_args, network_args, training_loop_args)
 
 #### DOMAIN ADAPTATION ####
-# source_domain = ['urban']
-# target_domain = ['rural']
+source_domain = ['urban']
+target_domain = ['rural']
 
-# ## Related to DS
-# batch_size = 2
-# transforms = get_transforms()
+## Related to DS
+batch_size = 2
+transforms = get_transforms()
 
-# ## Related to the network
-# n_classes = 8
-# bilinear = True
-# starter_channels = 16
-# up_layer = 4
-# attention = False
-# Love = True
+## Related to the network
+n_classes = 8
+bilinear = True
+starter_channels = 16
+up_layer = 4
+attention = False
+Love = True
 
-# DS_args = [batch_size, transforms, True]
-# network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
+DS_args = [batch_size, transforms, True]
+network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
 
-# lrs = [0.1, 0.01, 0.001, 0.0001]
+lrs = [0.001, 0.0001, 0.00001]
 
-# for lr in lrs:
-#     momentum = 0
-#     epochs = 10
-#     seg_loss_function = FocalLoss(gamma = 0.7, ignore_index = 0)
-#     domain_loss_function = torch.nn.BCEWithLogitsLoss()
-#     accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
+for lr in lrs:
+    momentum = 0.5
+    epochs = 10
+    seg_loss_function = FocalLoss(gamma = 0.7, ignore_index = 0)
+    domain_loss_function = torch.nn.BCEWithLogitsLoss()
+    accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
     
-#     best_model_accuracy, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
+    best_model_accuracy, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
 
-#     print(lr, best_model_accuracy)
+    print(lr, best_model_accuracy)
 
 #### PREDICTIONS ####
 
