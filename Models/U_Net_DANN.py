@@ -125,6 +125,53 @@ class C(nn.Module):
 
         return logits
 
+
+class D(nn.Module):
+    def __init__(self, initial_features, bilinear=True, starter = 8, up_layer = 3):
+        super(D, self).__init__()
+
+        self.initial_features = initial_features
+        self.bilinear = bilinear
+        self.starter = starter
+        self.up_layer = up_layer
+
+        factor = 2 if bilinear else 1
+
+        self.revgrad = (GradientReversal())
+        self.outd = (OutDisc(self.initial_features, 20))
+
+        if self.up_layer > 0:
+            self.down4_D = (Down(self.starter*(2**3)//factor, self.starter*(2**4) // factor))
+        if self.up_layer > 1:
+            self.down3_D = (Down(self.starter*(2**2)//factor, self.starter*(2**3)//factor))
+        if self.up_layer > 2:
+            self.down2_D = (Down(self.starter*(2**1)//factor, self.starter*(2**2)//factor))
+        if self.up_layer > 3:
+            self.down1_D = (Down(self.starter, self.starter*2//factor))
+
+    def forward(self, x):
+
+        x = self.revgrad(x)
+
+        if self.up_layer == 1:
+            x = self.down4_D(x)
+        if self.up_layer == 2:
+            x = self.down3_D(x)
+            x = self.down4_D(x)
+        if self.up_layer == 3:
+            x = self.down2_D(x)
+            x = self.down3_D(x)
+            x = self.down4_D(x)
+        if self.up_layer == 4:
+            x = self.down1_D(x)
+            x = self.down2_D(x)
+            x = self.down3_D(x)
+            x = self.down4_D(x)
+
+        x = self.outd(x)
+
+        return x
+        
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=True, starter = 8, up_layer = 3, attention = False):
 

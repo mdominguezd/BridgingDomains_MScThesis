@@ -44,4 +44,3 @@ def predict_LoveDA(network_filename, scene = ['rural', 'urban'], split = 'test',
 
     shutil.make_archive('Result', 'zip', 'Predictions')
 
-    

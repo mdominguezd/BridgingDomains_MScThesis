@@ -7,7 +7,7 @@ class FE(nn.Module):
     """
       Class for the creation of the feature extractor.
     """
-    def __init__(self, n_channels, starter, up_layer, bilinear = True, attention = False):
+    def __init__(self, n_channels, starter, up_layer, bilinear = True, attention = False, resunet = False):
         super(FE, self).__init__()
 
         self.n_channels = n_channels
@@ -15,23 +15,26 @@ class FE(nn.Module):
         self.starter = starter
         self.up_layer = up_layer
         self.attention = attention
+        self.resunet = resunet
 
         # Layers related to segmentation task
-        self.inc = (DoubleConv(self.n_channels, self.starter))
-        self.down1 = (Down(self.starter, self.starter*(2**1)))
-        self.down2 = (Down(self.starter*(2**1), self.starter*(2**2)))
-        self.down3 = (Down(self.starter*(2**2), self.starter*(2**3)))
+        self.inc = (DoubleConv(self.n_channels, self.starter, resunet = self.resunet))
+        self.down1 = (Down(self.starter, self.starter*(2**1), resunet = self.resunet))
+        self.down2 = (Down(self.starter*(2**1), self.starter*(2**2), resunet = self.resunet))
+        self.down3 = (Down(self.starter*(2**2), self.starter*(2**3), resunet = self.resunet))
+        
         factor = 2 if bilinear else 1
-        self.down4 = (Down(self.starter*(2**3), self.starter*(2**4) // factor))
+        
+        self.down4 = (Down(self.starter*(2**3), self.starter*(2**4) // factor, resunet = self.resunet))
         
         if self.up_layer >= 1:
-            self.up1 = (Up(self.starter*(2**4), self.starter*(2**3) // factor, bilinear, attention))
+            self.up1 = (Up(self.starter*(2**4), self.starter*(2**3) // factor, bilinear, attention, resunet = self.resunet))
         if self.up_layer >= 2:
-            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention))
+            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention, resunet = self.resunet))
         if self.up_layer >= 3:
-            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention))
+            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention, resunet = self.resunet))
         if self.up_layer >= 4:
-            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention))
+            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention, resunet = self.resunet))
 
     def DownSteps(self, x):
 
@@ -63,7 +66,7 @@ class FE(nn.Module):
         return x
 
 class C(nn.Module):
-    def __init__(self, n_channels, starter, up_layer, bilinear = True, n_classes = 2, attention = False):
+    def __init__(self, n_channels, starter, up_layer, bilinear = True, n_classes = 2, attention = False, resunet = False):
         super(C, self).__init__()
 
         self.n_channels = n_channels
@@ -72,26 +75,27 @@ class C(nn.Module):
         self.up_layer = up_layer
         self.n_classes = n_classes
         self.attention = attention
+        self.resunet = resunet
 
         factor = 2 if bilinear else 1
 
         if self.up_layer == 0:
-            self.up1 = (Up(self.starter*(2**4), self.starter*(2**3) // factor, bilinear, attention))
-            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention))
-            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention))
-            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention))
+            self.up1 = (Up(self.starter*(2**4), self.starter*(2**3) // factor, bilinear, attention, resunet = self.resunet))
+            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention, resunet = self.resunet))
+            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention, resunet = self.resunet))
+            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention, self.resunet))
             self.outc = (OutConv(self.starter, n_classes))
         elif self.up_layer == 1:
-            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention))
-            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention))
-            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention))
+            self.up2 = (Up(self.starter*(2**3), self.starter*(2**2) // factor, bilinear, attention, resunet = self.resunet))
+            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention, resunet = self.resunet))
+            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention, resunet = self.resunet))
             self.outc = (OutConv(self.starter, n_classes))
         elif self.up_layer == 2:
-            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention))
-            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention))
+            self.up3 = (Up(self.starter*(2**2), self.starter*(2**1) // factor, bilinear, attention, resunet = self.resunet))
+            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention, resunet = self.resunet))
             self.outc = (OutConv(self.starter, n_classes))
         elif self.up_layer == 3:
-            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention))
+            self.up4 = (Up(self.starter*(2**1), self.starter, bilinear, attention, resunet = self.resunet))
             self.outc = (OutConv(self.starter, n_classes))
         elif self.up_layer == 4:
             self.outc = (OutConv(self.starter, n_classes))
@@ -126,13 +130,14 @@ class C(nn.Module):
         return logits
         
 class D(nn.Module):
-    def __init__(self, initial_features, bilinear=True, starter = 8, up_layer = 3):
+    def __init__(self, initial_features, bilinear=True, starter = 8, up_layer = 3, resunet = False):
         super(D, self).__init__()
 
         self.initial_features = initial_features
         self.bilinear = bilinear
         self.starter = starter
         self.up_layer = up_layer
+        self.resunet = resunet
 
         factor = 2 if bilinear else 1
 
@@ -140,13 +145,14 @@ class D(nn.Module):
         self.outd = (OutDisc(self.initial_features, 20))
 
         if self.up_layer > 0:
-            self.down4_D = (Down(self.starter*(2**3)//factor, self.starter*(2**4) // factor))
+            self.down4_D = (Down(self.starter*(2**3)//factor, self.starter*(2**4)//factor, resunet = self.resunet))
         if self.up_layer > 1:
-            self.down3_D = (Down(self.starter*(2**2)//factor, self.starter*(2**3)//factor))
+            self.down3_D = (Down(self.starter*(2**2)//factor, self.starter*(2**3)//factor, resunet = self.resunet))
         if self.up_layer > 2:
-            self.down2_D = (Down(self.starter*(2**1)//factor, self.starter*(2**2)//factor))
+            self.down2_D = (Down(self.starter*(2**1)//factor, self.starter*(2**2)//factor, resunet = self.resunet))
         if self.up_layer > 3:
-            self.down1_D = (Down(self.starter, self.starter*2//factor))
+            self.down1_D = (Down(self.starter, self.starter*2//factor, resunet = self.resunet))
+            
     def forward(self, x):
 
         x = self.revgrad(x)
@@ -171,7 +177,7 @@ class D(nn.Module):
         return x
             
 class UNet(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=True, starter = 8, up_layer = 3, attention = False):
+    def __init__(self, n_channels, n_classes, bilinear=True, starter = 8, up_layer = 3, attention = False, resunet = False):
 
         super(UNet, self).__init__()
 
@@ -181,9 +187,10 @@ class UNet(nn.Module):
         self.starter = starter
         self.up_layer = up_layer
         self.attention = attention
+        self.resunet = resunet
 
-        self.FE = (FE(self.n_channels, self.starter, self.up_layer, self.bilinear, self.attention))
-        self.C = (C(self.n_channels, self.starter, self.up_layer, self.bilinear, self.n_classes, self.attention))
+        self.FE = (FE(self.n_channels, self.starter, self.up_layer, self.bilinear, self.attention, resunet = self.resunet))
+        self.C = (C(self.n_channels, self.starter, self.up_layer, self.bilinear, self.n_classes, self.attention, resunet = self.resunet))
 
         self.apply(self._init_weights)
 
@@ -204,7 +211,7 @@ class UNet(nn.Module):
                 module.bias.data.zero_()
 
 class disc(nn.Module):
-    def __init__(self, in_feat, bilinear=True, starter = 8, up_layer = 3):
+    def __init__(self, in_feat, bilinear=True, starter = 8, up_layer = 3, resunet = False):
 
         super(disc, self).__init__()
 
@@ -212,8 +219,9 @@ class disc(nn.Module):
         self.starter = starter
         self.up_layer = up_layer
         self.in_feat = in_feat
+        self.resunet = resunet
 
-        self.D = (D(initial_features=self.in_feat, bilinear = self.bilinear, starter = self.starter, up_layer = self.up_layer))
+        self.D = (D(initial_features=self.in_feat, bilinear = self.bilinear, starter = self.starter, up_layer = self.up_layer, resunet = self.resunet))
 
     def forward(self, x):
 

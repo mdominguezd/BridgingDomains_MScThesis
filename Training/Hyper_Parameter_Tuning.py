@@ -12,7 +12,7 @@ from Models.U_Net import UNet
 
 from Models.Loss_Functions import FocalLoss
 
-def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, decay, tr_size = 0.15, val_size = 0.75):
+def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, decay, atts, res, tr_size = 0.15, val_size = 0.75):
     """
         Function to perform Hyperparameter tuning for the networks to be trained.
 
@@ -25,6 +25,9 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, decay, tr_size = 0.15, val_s
             - Bi: List with values of bilinear to be considered during HP tuning. (Only True or False possible)
             - gamma: List with values of gamma vlaues for the focal loss to be considered during HP tuning.
             - VI: List with values of vegetation indices (True or False)
+            - decay: decay rate of learning rate.
+            - atts: Inclusion or not of Attention gates.
+            - res: Inclusion or not of residual connections on convolutional blocks.
         Output:
             - top_5: Set of HP with which the top 5 validation F1 Score where otained
     """
@@ -43,24 +46,26 @@ def HP_Tuning(dir, BS, LR, STCh, MU, Bi, gamma, VI, decay, tr_size = 0.15, val_s
                         for g in gamma:
                             for vi in VI:
                                 for de in decay:
-                                    train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, train_split_size = tr_size, val_split_size = val_size)
-                                    n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number fomr actual data
-                                    n_classes = 2
-        
-                                    loss_function = FocalLoss(gamma = g)
-        
-                                    # Define the network
-                                    network = UNet(n_channels, n_classes,  bi, stch, up_layer = 4)
-    
-                                    start = time.time()
-                                    f1_val, network_trained, spearman, no_l = training_loop(network, train_loader, val_loader, lr, mu, epochs, loss_function, decay = de, plot = False)
-                                    end = time.time()
-    
-                                    rows.append([bs, lr, stch, mu, bi, g, vi, de, f1_val, end-start, spearman, no_l])
-    
-                                    HP_values = pd.DataFrame(rows)
-                                    HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'decay', 'ValF1Score', 'Training time', 'Training rho', 'No_L']
-                                    HP_values.to_csv('TempHyperParamTuning_'+dir+'.csv')
+                                    for at in atts:
+                                        for re in res:
+                                            train_loader, val_loader, test_loader = get_DataLoaders(dir, bs, transforms, normalization, vi, train_split_size = tr_size, val_split_size = val_size)
+                                            n_channels = next(enumerate(train_loader))[1][0].shape[1] #get band number fomr actual data
+                                            n_classes = 2
+                
+                                            loss_function = FocalLoss(gamma = g)
+                
+                                            # Define the network
+                                            network = UNet(n_channels, n_classes,  bi, stch, up_layer = 4, attention = at, resunet = re)
+            
+                                            start = time.time()
+                                            f1_val, network_trained, spearman, no_l = training_loop(network, train_loader, val_loader, lr, mu, epochs, loss_function, decay = de, plot = False)
+                                            end = time.time()
+            
+                                            rows.append([bs, lr, stch, mu, bi, g, vi, de, at, re, f1_val, end-start, spearman, no_l])
+            
+                                            HP_values = pd.DataFrame(rows)
+                                            HP_values.columns = ['BatchSize','LR', 'StartCh', 'Momentum', 'Bilinear', 'gamma', 'VI', 'decay', 'attention', 'resnet', 'ValF1Score', 'Training time', 'Training rho', 'No_L']
+                                            HP_values.to_csv('TempHyperParamTuning_'+dir+'.csv')
     
     return HP_values
 

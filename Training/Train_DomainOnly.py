@@ -146,6 +146,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             
             #Set the gradients of the model to 0.
             optimizer.zero_grad()
+            # Get predictions
             pred = network(inputs)
 
             if (pred.max(1)[1].shape != GTs.shape):
@@ -159,6 +160,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             loss.backward()
 
             optimizer.step()
+            
             loss_train.append(loss.item()/GTs.shape[0])
             accuracy_train.append(accu_.item())
 

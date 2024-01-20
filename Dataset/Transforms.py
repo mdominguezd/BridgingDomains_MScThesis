@@ -5,7 +5,7 @@ import torchvision.transforms.v2 as T
 seed = 8
 np.random.seed(seed)
 
-def brightness(i, increase = 0.2, prob = 0.5):
+def brightness(i, increase = 0.1, prob = 0.5):
     """
         Function to augment images it increases or decreases the brightness of the image by a value of 0 to 20%
     """
