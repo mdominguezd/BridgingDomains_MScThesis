@@ -13,11 +13,9 @@ from tqdm import tqdm
 
 from Dataset.ReadyToTrain_DS import get_DataLoaders, get_LOVE_DataLoaders
 from Models.U_Net import UNet
+from utils import get_training_device, LOVE_resample_fly
 
-def get_training_device():
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False):
+def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False, binary_love = False):
     """
         Function to evaluate the performance of a network on a validation data loader.
 
@@ -43,8 +41,10 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
             
             # The inputs and GT are obtained differently depending of the Dataset (LoveDA or our own DS)
             if Love:
-                inputs = Data['image']
-                GTs = Data['mask']
+                inputs = LOVE_resample_fly(Data['image'])
+                GTs = LOVE_resample_fly(Data['mask'])
+                if binary_love:
+                    GTs = (GTs == 6).long()
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -70,7 +70,7 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
         
     return metric
 
-def training_loop(network, train_loader, val_loader, learning_rate, momentum, number_epochs, loss_function, accu_function = BinaryF1Score(),Love = False, decay = 0.8, bilinear = True, n_channels = 4, n_classes = 2, plot = True, seed = 8):
+def training_loop(network, train_loader, val_loader, learning_rate, momentum, number_epochs, loss_function, accu_function = BinaryF1Score(), Love = False, binary_love = False, decay = 0.75, bilinear = True, n_channels = 4, n_classes = 2, plot = True, seed = 8):
     """
         Function to train the Neural Network.
 
@@ -123,8 +123,8 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
     
     for epoch in tqdm(range(number_epochs), desc = 'Training model'):
     
-        #Validation phase 1:
-        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
+        #Validation phase 0:
+        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love, binary_love)
 
         val_eps.append(epoch)
         val_f1s.append(metric_val[0])
@@ -135,8 +135,10 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
         
         for i, Data in enumerate(train_loader): # Iterate over the training dataset and do the backward propagation.
             if Love:
-                inputs = Data['image']
-                GTs = Data['mask']
+                inputs = LOVE_resample_fly(Data['image'])
+                GTs = LOVE_resample_fly(Data['mask'])
+                if binary_love:
+                    GTs = (GTs == 6).long()
             else:
                 inputs = Data[0]
                 GTs = Data[1]
@@ -169,7 +171,8 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
             train_loss.append(np.mean(loss_train))
 
         #Validation phase 1:
-        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love)
+        metric_val = evaluate(network, val_loader, loss_function, accu_function, Love, binary_love)
+        print(epoch+1, metric_val)
 
         val_eps.append(epoch + 1)
         val_f1s.append(metric_val[0])
@@ -185,7 +188,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
                 torch.save(network, 'BestModel.pt')
                 model_saved = network
         
-        if (epoch//4 == epoch/4):
+        if (epoch//10 == epoch/10):
             #After 4 epochs, reduce the learning rate by a factor 
             optimizer.param_groups[0]['lr'] *= decay
 

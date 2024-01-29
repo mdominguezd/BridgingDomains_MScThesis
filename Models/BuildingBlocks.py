@@ -99,29 +99,29 @@ class OutConv(nn.Module):
 ### Gradient Reversal Layer
 # Adapted from: https://github.com/tadeephuy/GradientReversal/tree/master
 
-class GradientReversal(Function):
-    @staticmethod
-    def forward(ctx, x, alpha):
-        ctx.save_for_backward(x, alpha)
-        return x
+# class GradientReversal(Function):
+#     @staticmethod
+#     def forward(ctx, x, alpha):
+#         ctx.save_for_backward(x, alpha)
+#         return x
 
-    @staticmethod
-    def backward(ctx, grad_output):
-        grad_input = None
-        _, alpha = ctx.saved_tensors
-        if ctx.needs_input_grad[0]:
-            grad_input = - alpha*grad_output
-        return grad_input, None
+#     @staticmethod
+#     def backward(ctx, grad_output):
+#         grad_input = None
+#         _, alpha = ctx.saved_tensors
+#         if ctx.needs_input_grad[0]:
+#             grad_input = - alpha*grad_output
+#         return grad_input, None
 
-revgrad = GradientReversal.apply
+# revgrad = GradientReversal.apply
 
-class GradientReversal(nn.Module):
-    def __init__(self, alpha = 1):
-        super().__init__()
-        self.alpha = torch.tensor(alpha, requires_grad=False)
+# class GradientReversal(nn.Module):
+#     def __init__(self, alpha = 1):
+#         super().__init__()
+#         self.alpha = torch.tensor(alpha, requires_grad=False)
 
-    def forward(self, x):
-        return revgrad(x, self.alpha)
+#     def forward(self, x):
+#         return revgrad(x, self.alpha)
 
 class OutDisc(nn.Module):
     def __init__(self, in_feat, mid_layers):
@@ -138,20 +138,24 @@ class OutDisc(nn.Module):
     def forward(self, x):
         return self.D(x)
 
-# class OutDisc(nn.Module):
-#     def __init__(self, in_feat, mid_layers):
-#         super(OutDisc, self).__init__()
-#         self.D = nn.Sequential(
-#             nn.Flatten(),
-#             nn.Linear(in_features=in_feat, out_features=mid_layers, bias = False),
-#             nn.ReLU(),
-#             nn.Linear(in_features = mid_layers, out_features = mid_layers//2, bias = False),
-#             nn.ReLU(),
-#             nn.Linear(in_features = mid_layers//2, out_features = 1, bias = False)
-#         )
+# https://github.com/CuthbertCai/pytorch_DANN/tree/master
 
-#     def forward(self, x):
-#         return self.D(x)
+class GradReverse(torch.autograd.Function):
+    """
+    Extension of grad reverse layer
+    """
+    @staticmethod
+    def forward(ctx, x, constant):
+        ctx.constant = constant
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_output = grad_output.neg() * ctx.constant
+        return grad_output, None
+
+    def grad_reverse(x, constant):
+        return GradReverse.apply(x, constant)
 
 ############ OPTIONALS ##############
 

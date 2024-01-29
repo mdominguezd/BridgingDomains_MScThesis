@@ -1,5 +1,6 @@
 import numpy as np
 import torchvision.transforms.v2 as T
+from torchvision.transforms import InterpolationMode
 
 # To ensure reproducible results.
 seed = 8
@@ -7,7 +8,16 @@ np.random.seed(seed)
 
 def brightness(i, increase = 0.1, prob = 0.5):
     """
-        Function to augment images it increases or decreases the brightness of the image by a value of 0 to 20%
+        Function to augment images it increases or decreases the brightness of the image by a value of 0 to 10%
+
+        Inputs:
+            - **i:** (torch.tensor) Tensor to be augmented.
+            - **increase:** (float) Percentage of increase or decrease of brightness in the images. Default is 0.1.
+            - **prob:** (float) Probability of changing the brightness of the image.
+
+        Outputs:
+            - **transformed:** (torch.tensot) Tensor with the transform applied.
+
     """
     if i.unique().shape[0] != 2: # Hard code to avoid the transform to be done to the GT
         p = np.random.random(1)
@@ -18,9 +28,8 @@ def brightness(i, increase = 0.1, prob = 0.5):
         else:
             p_dec = np.random.random(1)
             i = i*((1 - increase*p_dec))
-
-    return i.float()
-
+    transformed = i.float()
+    return transformed
 
 ### ALL transforms performed on the dataset:
 def get_transforms():

@@ -8,8 +8,8 @@ import seaborn as sns
 
 from Dataset.ReadyToTrain_DS import *
 
-def get_training_device(): # This could go to an utils file
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from utils import get_training_device, LOVE_resample_fly
+
 
 def get_features_extracted(source_domain, target_domain, network_filename, DS_args, Love = False):
     """
@@ -26,7 +26,7 @@ def get_features_extracted(source_domain, target_domain, network_filename, DS_ar
         source_loaders = get_DataLoaders(source_domain, *DS_args)
         target_loaders = get_DataLoaders(target_domain, *DS_args)
 
-    n_batches = min(len(source_loaders[0]), len(target_loaders[0]))
+    n_batches = min(len(source_loaders[0]), len(target_loaders[0])) # CHANGE TO VALIDATION??
 
     batches = enumerate(zip(source_loaders[0], target_loaders[0]))
     
@@ -35,12 +35,14 @@ def get_features_extracted(source_domain, target_domain, network_filename, DS_ar
         k, (source, target) = next(batches)
 
         if Love:
-            source_input = source['image'].to(device)
-            target_input = target['image'].to(device)  
+            source_input = LOVE_resample_fly(source['image']).to(device)
+            target_input = LOVE_resample_fly(target['image']).to(device)  
         else:
             source_input = source[0].to(device)
             target_input = target[0].to(device)
 
+        print(source_input.shape)
+        
         max_batch_size = np.min([source_input.shape[0], target_input.shape[0]])
 
         s_features = network.FE(source_input)[:max_batch_size]

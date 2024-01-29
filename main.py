@@ -37,20 +37,19 @@ from Models.Loss_Functions import FocalLoss
 # atts = [True, False]
 # res = [False, True]
 
-# for i in range(3):
+# for i in range(1):
 #     # HP_Tuning('TanzaniaSplit'+str(i+1), BS, LR, STCh, MU, Bi, gamma, VI, decay, atts, res, tr_size = 0.05, val_size = 0.1)
 #     HP_Tuning('IvoryCoastSplit'+str(i+1), BS, LR, STCh, MU, Bi, gamma, VI, decay, atts, res, tr_size = 0.05, val_size = 0.1)
-
-# plot_HyperparameterTuning()
     
 # Hyperparameters for DOMAIN ONLY TRAINING
-domain = 'Tanzania'
+# domain = 'Tanzania'
 
-## Related to DS
-batch_size = 8
-transforms = get_transforms()
-normalization = 'Linear_1_99'
-VI = True
+# ## Related to DS
+# batch_size = 8
+# transforms = get_transforms()
+# normalization = 'Linear_1_99'
+# VI = True
+# DA = False
 
 # ## Related to the network
 # n_classes = 2
@@ -68,7 +67,7 @@ VI = True
 # accu_function = BinaryF1Score()
 # device = get_training_device()
 
-# DS_args = [batch_size, transforms, normalization, VI, False, 0.2, 0.5]
+# DS_args = [batch_size, transforms, normalization, VI, DA, 1, 1]
 # network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
 # training_args = [learning_rate, momentum, number_epochs, loss_function]
 # eval_args = [loss_function, accu_function]
@@ -78,21 +77,18 @@ VI = True
 # plot_3fold_accuracies(domain, Stats)
 
 # For Features extracted analysis
-DS_two_doms = [batch_size, transforms, normalization, VI, False, 1, 0.1]
+# S_, T_ = get_features_extracted('IvoryCoastSplit1', 'TanzaniaSplit1', 'OverallBestModel'+domain+'.pt', DS_two_doms, Love = False)
 
+# _ = tSNE_source_n_target(S_, T_)
 
-S_, T_ = get_features_extracted('IvoryCoastSplit1', 'TanzaniaSplit1', 'OverallBestModel'+domain+'.pt', DS_two_doms, Love = False)
+# cos = cosine_sim(S_, T_)
+# euc = euc_dist(S_, T_)
 
-_ = tSNE_source_n_target(S_, T_)
-
-cos = cosine_sim(S_, T_)
-euc = euc_dist(S_, T_)
-
-print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
+# print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 
 #### DOMAIN ADAPTATION ####
-# source_domain = 'IvoryCoastSplit1'
-# target_domain = 'TanzaniaSplit1'
+# source_domain = 'IvoryCoastSplit2'
+# target_domain = 'TanzaniaSplit2'
 
 # ## Related to DS
 # batch_size = 16
@@ -106,16 +102,19 @@ print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 # bilinear = True
 # sts = [16]
 # up_layer = 4
-# atts = [True, False]
+# atts = [True]
 # resunet = False
 
 # lr_s = [0.0001]
 # lr_d = [0.0001]
 # momentums = [0]
-# gammas = [5]
+# gammas = [3]
 
-# epochs = 30
+# epochs = 70
+# e_0 = 35
+# l_max = 0.3
 # Love = False
+# binary_love = False
 
 # domain_loss_function = torch.nn.BCEWithLogitsLoss(reduction = 'mean')
 # accu_function = BinaryF1Score()
@@ -128,16 +127,16 @@ print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 #             for gamma in gammas:
 #                 for attention in atts:
 #                     for starter_channels in sts:
-#                         DS_args = [batch_size, transforms, normalization, VI, DA, 0.15, 0.15]
+#                         DS_args = [batch_size, transforms, normalization, VI, DA, 0.1, None]
 #                         network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
                     
 #                         seg_loss_function = FocalLoss(gamma = gamma)
-#                         best_model_accuracy, target, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, lrd, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
+#                         best_model_accuracy, target, best_overall, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, lrd, momentum, epochs, e_0, l_max, Love, binary_love, seg_loss_function, domain_loss_function, accu_function)
             
-#                         rows.append([starter_channels, lr, lrd, momentum, gamma, attention, best_model_accuracy, target])
+#                         rows.append([starter_channels, lr, lrd, momentum, gamma, attention, best_model_accuracy, target, best_overall])
 
 #                         df = pd.DataFrame(rows)
-#                         df.columns = ['StCh', 'LR_seg', 'LR_d', 'momentum', 'gamma', 'attention', 'F1-Source', 'F1-Target']
+#                         df.columns = ['StCh', 'LR_seg', 'LR_d', 'momentum', 'gamma', 'attention', 'F1-Source', 'F1-Target', 'best_overall']
 #                         df.to_csv('HP_DANN.csv')
 
 # ## Visualize DANN
@@ -157,26 +156,27 @@ print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 ####################################################################
 
 # If needed run Hyperparameter tuning to get the optimal HPs
-# domain = ['urban', 'rural']
+# domain = ['urban']
 # BS = [4]
-# LR = [1.5, 3]
-# STCh = [16, 8]
-# MU = [0, 0.5]
-# Bi = [False, True]
-# gamma = [2, 4]
-# decay = [0.8, 1]
+# LR = [0.001, 0.01, 0.1, 1]
+# STCh = [16]
+# MU = [0, 0.2]
+# Bi = [True]
+# gamma = [2]
+# decay = [0.8]
+# atts = [True, False]
+# res = [False]
 
-# LoveDA_HP_Tuning(domain, BS, LR, STCh, MU, Bi, gamma, decay, tr_size = 0.1)
+# LoveDA_HP_Tuning(domain, BS, LR, STCh, MU, Bi, gamma, decay, atts, res, tr_size = 0.05)
 
-#### DOMAIN ONLY ####
+### DOMAIN ONLY ####
 
 # Hyperparameters for DOMAIN ONLY TRAINING
-# domain = ['urban']
+# domain = ['rural']
 
 # ## Related to DS
-# batch_size = 4
-# transforms = None
-# # get_transforms()
+# batch_size = 16
+# transforms = None # For LoveDA they are made on the fly
 # DA = False
 
 # ## Related to the network
@@ -184,80 +184,113 @@ print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 # bilinear = True
 # starter_channels = 16
 # up_layer = 4
-# attention = False
+# attention = True
 # resunet = False
 
 # ## Related to training and evaluation
-# learning_rate = 0.5
+# learning_rate = 0.1
 # momentum = 0.0
-# number_epochs = 50
-# loss_function = FocalLoss(gamma = 2, ignore_index = 0)
-# accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes,  ignore_index = 0)
+# number_epochs = 70
+# loss_function = FocalLoss(gamma = 3, ignore_index = 0)
+# accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
 # Love = True
+# binary_love = False
 # device = get_training_device()
 
 # # Group all arguments in three lists
-# DS_args = [batch_size, transforms, DA, 0.05, 0.1]
+# DS_args = [batch_size, transforms, DA, None, None]
 # network_args = [n_classes,  bilinear, starter_channels, up_layer, attention, resunet]
-# training_loop_args = [learning_rate, momentum, number_epochs, loss_function, accu_function, Love]
+# training_loop_args = [learning_rate, momentum, number_epochs, loss_function, accu_function, Love, binary_love]
 
 # accu, network_trained = train_LoveDA_DomainOnly(domain, DS_args, network_args, training_loop_args)
 
 # print(accu)
 
+# tr, val, test = get_LOVE_DataLoaders(['urban'], 2, transforms)
+
+# plot_GTvsPred_sample_images('BestModel.pt', tr, 2, Love = True, binary_love = binary_love, DA = False)
+
+# tr, val, test = get_LOVE_DataLoaders(['rural'], 2, transforms)
+
+# plot_GTvsPred_sample_images('BestModel.pt', tr, 2, Love = True, binary_love = binary_love, DA = False)
+
+
+# print(accu)
+
 #### DOMAIN ADAPTATION ####
-# source_domain = ['urban']
-# target_domain = ['rural']
+source_domain = ['urban']
+target_domain = ['rural']
 
-# # Related to DS
-# batch_size = 2
-# transforms = None
-# # get_transforms()
+# Related to DS
+batch_size = 12
+transforms = None
+# get_LOVE_transforms()
 
-# # Related to the network
-# n_classes = 8
-# bilinear = True
-# starter_channels = 16
-# up_layer = 4
-# attention = False
-# # resunet = False
-# Love = True
+# Related to the network
+n_classes = 8
+bilinear = True
+starter_channels = 16
+up_layer = 4
+attentions = [True]
+# resunet = False
+Love = True
 
-# DS_args = [batch_size, transforms, True, 0.5, 0.5]
-# network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
+binary_love = False
 
-# lrs_d = [0.01]
-# lrs_s = [0.01]
-# gammas = [3]
-# momentums =  [0.0]
+DS_args = [batch_size, transforms, True, 0.1, 0.1]
 
-# epochs = 40
 
-# rows = []
+lrs_d = [0.001]
+lrs_s = [0.001]
+gammas = [3]
+momentums =  [0.0]
 
-# for lr_disc in lrs_d:
-#     for lr_seg in lrs_s:
-#         for gamma in gammas:
-#             for momentum in momentums:
-                
-#                 seg_loss_function = FocalLoss(gamma = gamma, ignore_index = 0)
-#                 domain_loss_function = torch.nn.BCEWithLogitsLoss()
-#                 accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
-                
-#                 best_model_accuracy, accu_target, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr_seg, lr_disc, momentum, epochs, Love, seg_loss_function, domain_loss_function, accu_function)
-    
-#                 rows.append([lr_seg, lr_disc, gamma, momentum, best_model_accuracy, accu_target])
-    
-#                 df = pd.DataFrame(rows)
-#                 df.columns = ['LR_seg', 'LR_disc', 'gamma','momentum', 'IOU-Source', 'IOU-Target']
-#                 df.to_csv('HP_LOVE_DANN.csv')
+epochs = 70
+e_0 = 40
+l_mxs = [0.15]
 
-# #### PREDICTIONS ####
+## ELIOTT BRION params
+# lr = 10**(-4)
+# optimizer = Adam
+# epochs = 150
+# e_0 = 50
+# lambda_max = [0.01, 0.03, 0.1, 0.3] [L3, L6, L9, L11]
 
-# # predict_LoveDA('BestDANNModel.pt', ['urban', 'rural'])
-# # predict_LoveDA('BestUrbanLoveDAModel.pt', ['rural'])
+rows = []
 
-# tr, val, test = get_LOVE_DataLoaders(['rural'], 4)
+for lr_disc in lrs_d:
+    for lr_seg in lrs_s:
+        for gamma in gammas:
+            for momentum in momentums:
+                for attention in attentions:
+                    for l_max in l_mxs:
+                    
+                        network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
+                    
+                        seg_loss_function = FocalLoss(gamma = gamma, ignore_index = 0)
+                        domain_loss_function = torch.nn.BCEWithLogitsLoss()
+                        accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
+                        
+                        best_model_accuracy, accu_target, best_overall, best_network, training_list = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr_seg, lr_disc, momentum, epochs, e_0, l_max, Love, binary_love, seg_loss_function, domain_loss_function, accu_function)
+            
+                        rows.append([lr_seg, lr_disc, gamma, momentum, attention, l_max, best_model_accuracy, accu_target, best_overall])
+            
+                        df = pd.DataFrame(rows)
+                        df.columns = ['LR_seg', 'LR_disc', 'gamma','momentum', 'attention', 'l_max', 'IOU-Source', 'IOU-Target', 'IOU-Source + Discriminator']
+                        df.to_csv('HP_LOVE_DANN_2.csv')
 
-# plot_GTvsPred_sample_images('BestDANNModel.pt', tr, 4, Love = True)
+# # # #### PREDICTIONS ####
 
+# # # # predict_LoveDA('BestDANNModel.pt', ['urban', 'rural'])
+# # # # predict_LoveDA('BestUrbanLoveDAModel.pt', ['rural'])
+
+# # tr, val, test = get_LOVE_DataLoaders(['urban'], 2, transforms)
+
+# # plot_GTvsPred_sample_images('BestDANNModel.pt', tr, 2, Love = True, binary_love = binary_love)
+
+# # tr, val, test = get_LOVE_DataLoaders(['rural'], 2, transforms)
+
+# # plot_GTvsPred_sample_images('BestDANNModel.pt', tr, 2, Love = True, binary_love= binary_love)
+
+
+# plot_grad_flow(best_network.named_parameters())

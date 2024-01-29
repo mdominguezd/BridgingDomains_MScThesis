@@ -130,7 +130,7 @@ class C(nn.Module):
         return logits
         
 class D(nn.Module):
-    def __init__(self, initial_features, bilinear=True, starter = 8, up_layer = 3, resunet = False):
+    def __init__(self, initial_features, bilinear=True, starter = 8, up_layer = 3, resunet = False, grad_rev_w = 1):
         super(D, self).__init__()
 
         self.initial_features = initial_features
@@ -138,11 +138,13 @@ class D(nn.Module):
         self.starter = starter
         self.up_layer = up_layer
         self.resunet = resunet
+        self.grad_rev_w = grad_rev_w
 
         factor = 2 if bilinear else 1
 
-        self.revgrad = (GradientReversal())
-        self.outd = (OutDisc(self.initial_features, 20))
+        self.revgrad = GradReverse.grad_reverse
+        
+        self.outd = (OutDisc(self.initial_features, 256))
 
         if self.up_layer > 0:
             self.down4_D = (Down(self.starter*(2**3)//factor, self.starter*(2**4)//factor, resunet = self.resunet))
@@ -153,9 +155,9 @@ class D(nn.Module):
         if self.up_layer > 3:
             self.down1_D = (Down(self.starter, self.starter*2//factor, resunet = self.resunet))
             
-    def forward(self, x):
+    def forward(self, x, grad_rev_w):
 
-        x = self.revgrad(x)
+        x = self.revgrad(x, grad_rev_w)
 
         if self.up_layer == 1:
             x = self.down4_D(x)
@@ -200,7 +202,7 @@ class UNet(nn.Module):
         down_st = self.FE.DownSteps(x) # Get channels that will be concatenated from downward steps
 
         logits = self.C(features, down_st) # Classifier
-
+        
         return logits
 
 
@@ -210,8 +212,51 @@ class UNet(nn.Module):
             if module.bias is not None:
                 module.bias.data.zero_()
 
+class UNetDANN(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=True, starter = 8, up_layer = 3, attention = False, resunet = False, DA = False, in_feat = None, grad_rev_w = 1):
+
+        super(UNetDANN, self).__init__()
+
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+        self.starter = starter
+        self.up_layer = up_layer
+        self.attention = attention
+        self.resunet = resunet
+        self.in_feat = in_feat
+        self.DA = DA
+
+        self.FE = (FE(self.n_channels, self.starter, self.up_layer, self.bilinear, self.attention, resunet = self.resunet))
+        self.C = (C(self.n_channels, self.starter, self.up_layer, self.bilinear, self.n_classes, self.attention, resunet = self.resunet))
+
+        if DA:
+            self.D = (D(initial_features=self.in_feat, bilinear = self.bilinear, starter = self.starter, up_layer = self.up_layer, resunet = self.resunet, grad_rev_w = grad_rev_w))
+
+        self.apply(self._init_weights)
+
+    def forward(self, x, grad_rev_w = 0):
+
+        features = self.FE(x) # Feature extractor
+        down_st = self.FE.DownSteps(x) # Get channels that will be concatenated from downward steps
+
+        logits = self.C(features, down_st) # Classifier
+
+        dom_preds = self.D(features, grad_rev_w)
+
+        return logits, dom_preds
+
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_normal_(module.weight)
+        if isinstance(module, nn.Conv2d):
+            nn.init.xavier_normal_(module.weight)
+            if module.bias is not None:
+                module.bias.data.zero_()
+
 class disc(nn.Module):
-    def __init__(self, in_feat, bilinear=True, starter = 8, up_layer = 3, resunet = False):
+    def __init__(self, in_feat, bilinear=True, starter = 8, up_layer = 3, resunet = False, grad_rev_w = 1):
 
         super(disc, self).__init__()
 
@@ -220,12 +265,13 @@ class disc(nn.Module):
         self.up_layer = up_layer
         self.in_feat = in_feat
         self.resunet = resunet
+        self.grad_rev_w = grad_rev_w
 
-        self.D = (D(initial_features=self.in_feat, bilinear = self.bilinear, starter = self.starter, up_layer = self.up_layer, resunet = self.resunet))
+        self.D = (D(initial_features=self.in_feat, bilinear = self.bilinear, starter = self.starter, up_layer = self.up_layer, resunet = self.resunet, grad_rev_w = self.grad_rev_w))
 
-    def forward(self, x):
+    def forward(self, x, grad_rev_w):
 
-        disc = self.D(x)
+        disc = self.D(x, grad_rev_w)
 
         return disc
 
