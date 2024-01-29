@@ -165,13 +165,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Zipped files
-.zip
-
-#Pytorch files
-.pt
-
-#Images
-.png
-.jpg
+*.png
+*.pt
+*.csv
+*.tif
+*.ipynb
+*.jpg
+*.zip
 
