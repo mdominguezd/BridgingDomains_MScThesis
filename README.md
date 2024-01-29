@@ -8,4 +8,4 @@ The overall objective of this thesis is to assess the performance of adversarial
 
 # Documentation
 
-The full documentation of this repository can be accessed [here](https://mdominguezd.github.io/CashewDA-docs/docs)
+The full documentation of this repository can be accessed [here](https://mdominguezd.github.io/CashewDA-docs/)
