@@ -10,9 +10,7 @@ from sklearn.manifold import TSNE
 from torchmetrics.classification import BinaryF1Score, JaccardIndex
 
 from Dataset.ReadyToTrain_DS import *
-
-def get_training_device(): # This could go to an utils file
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from utils import get_training_device, LOVE_resample_fly
 
 def plot_3fold_accuracies(domain, Stats):
     """
@@ -24,41 +22,54 @@ def plot_3fold_accuracies(domain, Stats):
     plt.tight_layout()
     fig.savefig(domain + '_accuracy.png', dpi = 200)
 
-def plot_HyperparameterTuning():
+def plot_HyperparameterTuning(domain, y_HPs, x_HPs, folds = 3, dann = False):
     """
-        
+        Function to plot the results of hyperparameter tuning done for each of the domains.
+
+        Inputs:
+            - domain: (str) Name of the domain.
+            - y_HPs: (list)
     """
-    for domain in ['Tanzania', 'IvoryCoast']:
+
+    if dann:
+        df = pd.read_csv('TempHyperParamTuning_DANN.csv')
+        pv1 = pd.pivot_table(df,'ValF1Score',y_HPs, x_HPs)
+
+        fig, ax = plt.subplots(1,1, figsize = (6,6), layout='constrained')
         
-        for i in range(3):
-            if i == 0:
-                df = pd.read_csv('TempHyperParamTuning_'+domain+'Split'+str(i+1)+'.csv')
+        sns.heatmap(pv1, vmin = 0, vmax = 1, cmap = 'RdYlGn', annot = True, ax = ax)
+        
+        ax.set_title('Validation F1-score')
+
+        fig.savefig('HP_DANN.png')
+
+    else:
+        for i in range(folds):
+            i+=1
+            if i == 1:
+                df = pd.read_csv('TempHyperParamTuning_'+domain+'Split'+str(i)+'.csv')
             else:
-                df += pd.read_csv('TempHyperParamTuning_'+domain+'Split'+str(i+1)+'.csv')
-            
-            df['Validation rho'] = df['Training rho']
-            df['Training time'] = 3*(df['Training time']/np.max(df['Training time']))
-            
-            piv = pd.pivot_table(df/3, ['Validation rho', 'ValF1Score', 'Training time'], ['LR', 'decay'], ['Momentum', 'gamma'])
-            
-        fig = plt.figure(figsize = (21,7))
+                df += pd.read_csv('TempHyperParamTuning_'+domain+'Split'+str(i)+'.csv')
+    
+        df /= folds
+    
+        pv_1 = pd.pivot_table(df,'ValF1Score',y_HPs, x_HPs)
+        pv_2 = pd.pivot_table(df,'Training rho',y_HPs, x_HPs)
+    
+        fig, ax = plt.subplots(1,2, figsize = (12,6), layout='constrained')
         
-        sns.heatmap(piv, cmap = 'RdYlGn', vmin = 0, vmax = 1, annot = True)
+        sns.heatmap(pv_1, vmin = 0, vmax = 1, cmap = 'RdYlGn', annot = True, ax = ax[0])
         
-        plt.title('Hyper parameter tuning '+domain)
+        ax[0].set_title('Validation F1-score')
+        
+        sns.heatmap(pv_2, vmin = 0, vmax = 1, cmap = 'RdYlGn', annot = True, ax = ax[1])
+        
+        ax[1].set_title('Training spearman\ncorrelation')
+            
+        plt.suptitle('Hyper parameter tuning '+ domain)
     
         fig.savefig('HP_'+domain+'.png')
 
-def LOVE_resample_fly(i):
-    if len(i.shape) == 4:
-        i = i[:, :, ::4, ::4]
-    elif len(i.shape) == 3:
-        i = i[:, ::4, ::4]
-    
-    if i.unique().shape[0] > 8: # Hard code to avoid the transform to be done to the GT
-        i = i/255
-
-    return i
 
 def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = False, binary_love = False, DA = True, device = 'cpu'):
     """
@@ -79,6 +90,8 @@ def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = 
         max = 7
 
         ACCU = JaccardIndex(task = 'multiclass', num_classes = 8).to(device)
+
+        cmap = 'jet'
     else:
         i, data = next(enumerate(data_loader))
         
@@ -88,6 +101,7 @@ def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = 
         max = 1
 
         ACCU = BinaryF1Score().to(device)
+        cmap = 'Greens'
 
     if img.shape[-4] < num_images:
         raise ValueError("num_images must be less or equal to the batch_size of the data loader")
@@ -101,9 +115,11 @@ def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = 
     pred = network(img)
 
     if DA:
-        print(pred[1])
+        domains = ['Source' if i>0 else 'Target' for i in pred[1]]
         pred = pred[0]
         
+    else:
+        domains = ['Image']*num_images
     
     accuracy = ACCU(msk, pred.max(1)[1])
     
@@ -118,14 +134,20 @@ def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = 
         if num_images == 1: 
             
             ax[0].imshow(np.transpose(img_[:3], (1,2,0)))
-            ax[1].imshow(msk_, cmap = 'jet', vmin = 0, vmax = max)
-            ax[2].imshow(pred_, cmap = 'jet', vmin = 0, vmax = max)
+            ax[0].set_title(domains[i])
+            ax[1].imshow(msk_, cmap = cmap, vmin = 0, vmax = max)
+            ax[1].set_title('GT')
+            ax[2].imshow(pred_, cmap = cmap, vmin = 0, vmax = max)
+            ax[2].set_title('Predictions')
             
         else:
             
             ax[i,0].imshow(np.transpose(img_[:3], (1,2,0)))
-            ax[i,1].imshow(msk_, cmap = 'jet', vmin = 0, vmax = max)
-            ax[i,2].imshow(pred_, cmap = 'jet', vmin = 0, vmax = max)
+            ax[i,0].set_title(domains[i])
+            ax[i,1].imshow(msk_, cmap = cmap, vmin = 0, vmax = max)
+            ax[i,1].set_title('GT')
+            ax[i,2].imshow(pred_, cmap = cmap, vmin = 0, vmax = max)
+            ax[i,2].set_title('Predictions')
 
         
     plt.suptitle('Batch\naccuracy:'+str(accuracy))

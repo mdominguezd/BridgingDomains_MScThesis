@@ -11,12 +11,14 @@ from Dataset.ReadyToTrain_DS import *
 from utils import get_training_device, LOVE_resample_fly
 
 
-def get_features_extracted(source_domain, target_domain, network_filename, DS_args, Love = False):
+def get_features_extracted(source_domain, target_domain, DS_args, network = None, network_filename = '', Love = False, cos_int = False, euc_int = False):
     """
         
     """
     device = get_training_device()
-    network = torch.load(network_filename, map_location = device) 
+
+    if network == None:
+        network = torch.load(network_filename, map_location = device) 
     
     if Love:
         source_loaders = get_LOVE_DataLoaders(source_domain, *DS_args)
@@ -26,11 +28,18 @@ def get_features_extracted(source_domain, target_domain, network_filename, DS_ar
         source_loaders = get_DataLoaders(source_domain, *DS_args)
         target_loaders = get_DataLoaders(target_domain, *DS_args)
 
-    n_batches = min(len(source_loaders[0]), len(target_loaders[0])) # CHANGE TO VALIDATION??
+    n_batches = min(len(source_loaders[0]), len(target_loaders[0])) 
 
     batches = enumerate(zip(source_loaders[0], target_loaders[0]))
+
+    cos = 0
+
+    if cos_int or euc_int:
+        d = 'Calculating distance metric'
+    else:
+        d = 'Getting features extracted'
     
-    for i in tqdm(range(n_batches), desc = 'Getting features extracted'):
+    for i in tqdm(range(n_batches), desc = d):
 
         k, (source, target) = next(batches)
 
@@ -40,24 +49,31 @@ def get_features_extracted(source_domain, target_domain, network_filename, DS_ar
         else:
             source_input = source[0].to(device)
             target_input = target[0].to(device)
-
-        print(source_input.shape)
         
         max_batch_size = np.min([source_input.shape[0], target_input.shape[0]])
 
-        s_features = network.FE(source_input)[:max_batch_size]
-        t_features = network.FE(target_input)[:max_batch_size]
+        s_features = network.FE(source_input)[:max_batch_size].flatten(start_dim = 1).cpu().detach().numpy()
+        t_features = network.FE(target_input)[:max_batch_size].flatten(start_dim = 1).cpu().detach().numpy()
 
-        if i == 0:
-            source_F = np.array(s_features.flatten(start_dim = 1).cpu().detach().numpy())
-            target_F = np.array(t_features.flatten(start_dim = 1).cpu().detach().numpy())
+        if cos_int:
+            cos += cosine_sim(s_features, t_features)
+        elif euc_int:
+            cos += euc_dist(s_features, t_features)
         else:
-            source_F = np.append(source_F, s_features.flatten(start_dim = 1).cpu().detach().numpy(), axis = 0)
-            target_F = np.append(target_F, t_features.flatten(start_dim = 1).cpu().detach().numpy(), axis = 0)
+            if i == 0:
+                source_F = np.array(s_features)
+                target_F = np.array(t_features)
+            else:
+                source_F = np.append(source_F, s_features, axis = 0)
+                target_F = np.append(target_F, t_features, axis = 0)
+                
 
-    print(source_F.shape, target_F.shape)
+    cos /= n_batches
     
-    return source_F, target_F
+    if cos_int or euc_int:
+        return cos
+    else:
+        return source_F, target_F
 
 def tSNE_source_n_target(source_F, target_F):
     """
@@ -93,7 +109,7 @@ def cosine_sim(source_F, target_F):
     
     cos = COS(torch.tensor(source_F), torch.tensor(target_F)).mean()
 
-    return cos
+    return cos.numpy()
 
 def euc_dist(source_F, target_F):
     """

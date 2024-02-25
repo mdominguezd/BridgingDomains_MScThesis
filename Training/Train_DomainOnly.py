@@ -107,7 +107,7 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
     
     network = network
     network.to(device)
-    optimizer = torch.optim.SGD(network.parameters(), lr=learning_rate, momentum = momentum)
+    optimizer = torch.optim.SGD(network.parameters(), lr=learning_rate, momentum = momentum, weight_decay=1e-4)
     
     #Training metrics are computed as a running average of the last x samples
     loss_train = deque(maxlen=len(train_loader))
@@ -318,6 +318,41 @@ def train_LoveDA_DomainOnly(domain, DS_args, network_args, training_loop_args):
 
     return accu_val, network_trained
 
-
+def run_DomainOnly(domain = 'IvoryCoast'):
+    """
+    
+    """
+    
+    ## Related to DS
+    batch_size = 16
+    transforms = get_transforms()
+    normalization = 'Linear_1_99'
+    VI = True
+    DA = False
+    
+    ## Related to the network
+    n_classes = 2
+    bilinear = True
+    starter_channels = 16
+    up_layer = 4
+    attention = True
+    resunet = False
+    
+    ## Related to training and evaluation
+    number_epochs = 70
+    learning_rate = 1
+    momentum = 0.2
+    loss_function = FocalLoss(gamma = 2)
+    accu_function = BinaryF1Score()
+    device = get_training_device()
+    
+    DS_args = [batch_size, transforms, normalization, VI, DA, 0.5, 0.5]
+    network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
+    training_args = [learning_rate, momentum, number_epochs, loss_function]
+    eval_args = [loss_function, accu_function]
+    
+    Stats = train_3fold_DomainOnly(domain, DS_args, network_args, training_args, eval_args)
+    
+    plot_3fold_accuracies(domain, Stats)
 
     

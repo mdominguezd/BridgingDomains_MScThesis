@@ -11,7 +11,7 @@ import numpy as np
 from torch.utils.data import random_split
 from torchgeo.datasets import LoveDA
 
-def calculate_percentiles(img_folder, samples = 400):
+def calculate_percentiles(img_folder, samples = 800):
     """
         Function to calculate 0.01 and 0.99 percentiles of the bands of planet images. These values will be later used for normalizing the dataset.
 
@@ -28,7 +28,7 @@ def calculate_percentiles(img_folder, samples = 400):
     quantiles = np.zeros((2,4))
     
     for i in img_sample:
-        quantiles += rioxarray.open_rasterio(img_folder + "\\" + i).quantile((0.01, 0.99), dim = ('x','y')).values
+        quantiles += rioxarray.open_rasterio(img_folder + "/" + i).quantile((0.01, 0.99), dim = ('x','y')).values
     
     vals = quantiles/len(img_sample)
     
@@ -75,7 +75,7 @@ def get_LOVE_DataLoaders(domain = ['urban', 'rural'], batch_size = 4, transforms
     else:
         return train_loader, val_loader, test_loader
 
-def get_DataLoaders(dir, batch_size, transform, normalization, VI, only_get_DS = False, train_split_size = None, val_split_size = None):
+def get_DataLoaders(dir, batch_size, transform, normalization, VI, only_get_DS = False, train_split_size = None, val_split_size = None, recalculate_perc = False):
     """
         Function to get the training, validation and test data loader for a specific dataset.
 
@@ -96,9 +96,9 @@ def get_DataLoaders(dir, batch_size, transform, normalization, VI, only_get_DS =
             - test_loader: Test torch data loader
     """
     
-    train_DS = Img_Dataset(dir, transform, norm = normalization, VI=VI)
-    val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI)
-    test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI)
+    train_DS = Img_Dataset(dir, transform, norm = normalization, VI=VI, recalculate_perc = recalculate_perc)
+    val_DS = Img_Dataset(dir, split = 'Validation', norm = normalization, VI=VI, recalculate_perc = recalculate_perc)
+    test_DS = Img_Dataset(dir, split = 'Test', norm = normalization, VI=VI, recalculate_perc = recalculate_perc)
 
     if train_split_size != None:
         if val_split_size == None:

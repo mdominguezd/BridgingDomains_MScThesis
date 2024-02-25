@@ -5,8 +5,10 @@ from tqdm import tqdm
 import pandas as pd
 
 from Dataset.ReadyToTrain_DS import *
+from Dataset.Transforms import *
 from Models.U_Net import *
 from utils import get_training_device, LOVE_resample_fly
+from Validate.domain_adaptation_performance import cosine_sim, get_features_extracted
 
 plt.style.use('ggplot')
 
@@ -101,17 +103,23 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
         
     return metric
 
-def evaluate_disc(network, validate_loaders, device, Love = False, revgrad = 0):
+def evaluate_disc(network, validate_loaders, device, Love = False):
     """
-        Function to evaluate the performance of the discriminator
+        Function to evaluate the performance of the discriminator by the maximization of cosine simillarity
 
         Inputs:
-            - discriminator: Discriminator head used for the adversarial training
+            - network: Discriminator head used for the adversarial training
+            - validate_loaders: 
             
     """
 
     network.eval()
 
+    # s_dom, t_dom = domains
+    
+    # s_F, t_F = get_features_extracted(s_dom, t_dom, DS_args, network = network)
+
+    # OA_metric = cosine_sim(s_F, t_F)
     k = -1
 
     OA_final = []
@@ -135,7 +143,7 @@ def evaluate_disc(network, validate_loaders, device, Love = False, revgrad = 0):
                 GTs = k*torch.ones(inputs.shape[0]).detach().numpy()
 
                 features = network.FE(inputs)
-                dom_preds = network.D(features, revgrad)
+                dom_preds = network.D(features, 0)
 
                 preds = (dom_preds.detach().cpu().numpy() > 0)
                 
@@ -150,7 +158,7 @@ def evaluate_disc(network, validate_loaders, device, Love = False, revgrad = 0):
     return OA_metric
     
 
-def DANN_training_loop(source_domain, target_domain, DS_args, network_args, learning_rate_seg, learning_rate_disc, momentum, epochs, e_0, l_max, Love = False, binary_love = False, seg_loss = torch.nn.CrossEntropyLoss(), domain_loss = torch.nn.BCEWithLogitsLoss(), accu_function = BinaryF1Score()):
+def DANN_training_loop(source_domain, target_domain, DS_args, network_args, optim_args, DA_args, Love = False, binary_love = False, seg_loss = torch.nn.CrossEntropyLoss(), domain_loss = torch.nn.BCEWithLogitsLoss(), accu_function = BinaryF1Score(), semi = False, semi_perc = 0.1):
     """
         Function to carry out the training of UNet-DANN.
 
@@ -188,8 +196,6 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
     target_n_batches = np.ceil(len(target_train_dataset)/(batch_size//2))
     
     n_batches = min(source_n_batches, target_n_batches)
-
-    source_bigger_target = source_n_batches > target_n_batches
     
     batch_iterations = np.ceil(max(source_n_batches, target_n_batches) / n_batches)
 
@@ -199,12 +205,26 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
     
     # Initialize the networks to be trained and the optimizer
     network = initialize_Unet_DANN(n_channels, *network_args)
-    optim = torch.optim.Adam([{'params': network.FE.parameters(), 'lr': learning_rate_seg},
-                              {'params': network.C.parameters(), 'lr': learning_rate_seg},
-                              {'params': network.D.parameters(), 'lr': learning_rate_disc},
-                              ])
-    # , momentum=momentum)
     
+    weight_decay = 1e-4
+    
+    if len(optim_args) == 3:
+            optim = torch.optim.SGD([{'params': network.FE.parameters(), 'lr': optim_args[0]},
+                                     {'params': network.C.parameters(), 'lr': optim_args[0]},
+                                     {'params': network.D.parameters(), 'lr': optim_args[1]},
+                                     ], weight_decay = weight_decay, momentum = optim_args[2])
+    elif len(optim_args) > 1:
+        optim = torch.optim.Adam([{'params': network.FE.parameters(), 'lr': optim_args[0]},
+                                  {'params': network.C.parameters(), 'lr': optim_args[0]},
+                                  {'params': network.D.parameters(), 'lr': optim_args[1]},
+                                 ], weight_decay = weight_decay)
+        
+    else:
+        optim = torch.optim.Adam([{'params': network.FE.parameters(), 'lr': optim_args[0]},
+                                  {'params': network.C.parameters(), 'lr': optim_args[0]},
+                                  {'params': network.D.parameters(), 'lr': optim_args[0]},
+                                 ], weight_decay = weight_decay)
+        
     # Create empty lists where segementation accuracy in source dataset and segmentation and domain loss will be stored.
     val_accuracy = []
     val_disc_accu = []
@@ -216,8 +236,14 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
 
     eps = []
 
-    source_loader = torch.utils.data.DataLoader(dataset=source_DSs[0], batch_size=batch_size//2, shuffle=True)
-    target_loader = torch.utils.data.DataLoader(dataset=target_DSs[0], batch_size=batch_size//2, shuffle=True)
+    source_loader = torch.utils.data.DataLoader(dataset=source_train_dataset, batch_size=batch_size//2, shuffle=True)
+    target_loader = torch.utils.data.DataLoader(dataset=target_train_dataset, batch_size=batch_size//2, shuffle=True)
+
+    if semi:
+        sub = torch.utils.data.Subset(target_train_dataset, list(range(int(len(target_train_dataset)//(1/semi_perc)))))
+        target_loader_sub = torch.utils.data.DataLoader(dataset=sub, batch_size=batch_size//2, shuffle=True)
+
+    epochs, e_0, l_max = DA_args
 
     for epoch in tqdm(range(epochs), desc = 'Training UNet-DANN model'):
 
@@ -229,7 +255,7 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
         revgrad = np.max([0, l_max*(epoch - e_0)/(epochs - e_0)])
 
         for source, target in tqdm(batches, disable=True, total=n_batches):
-
+            
             if Love:
                 source_img = LOVE_resample_fly(source['image'])
                 source_msk = LOVE_resample_fly(source['mask'])
@@ -243,6 +269,8 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
                 
                 target_img = target[0]
                 target_msk = target[1]
+                
+                
 
             imgs = torch.cat([source_img, target_img])
             imgs = imgs.to(device)
@@ -262,6 +290,22 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
             # Calculate the loss function
             segmentation_loss = seg_loss(seg_preds[:source_img.shape[0]], mask_gt)
             discriminator_loss = domain_loss(dom_preds.squeeze(), domain_gt)
+
+            if semi:
+                
+                target_sub = next(iter(target_loader_sub))
+                    
+                semitarget_img = target_sub[0].to(device)
+                semitarget_gt = target_sub[1][:,0,:,:].to(torch.int64).to(device)
+                
+                features = network.FE(semitarget_img)
+                dw = network.FE.DownSteps(semitarget_img)
+
+                semi_preds = network.C(features, dw)
+
+                seg_batch = seg_loss(semi_preds, semitarget_gt)
+                
+                segmentation_loss += seg_batch
 
             seg_imp = 1
             
@@ -288,7 +332,8 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
         if (epoch//10 == epoch/10):
             #After 4 epochs, reduce the learning rate by a factor 
             optim.param_groups[0]['lr'] *= 0.75
-            # torch.save(network, 'DANNModel_epoch'+str(epoch)+'.pt')
+            oa_val = 1
+            # evaluate_disc(network, [source_loader, target_val_loader], device, Love)
         
         # Evaluate network on validation dataset
         f1_val, loss_val = evaluate(network, source_val_loader, seg_loss, accu_function, Love, binary_love, revgrad)
@@ -296,8 +341,13 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
     
         f1_val_target, loss_val_target = evaluate(network, target_val_loader, seg_loss, accu_function, Love, binary_love, revgrad)
         val_accuracy_target.append(f1_val_target)
-
-        oa_val = evaluate_disc(network, [source_val_loader, target_val_loader], device, Love, revgrad)
+        
+        #update values in DS_args for cosine similarity computation
+        # DS_args[-3] = False
+        # DS_args[-2] = 0.025
+        # DS_args[-1] = 0.025
+        
+        
 
         eps.append(epoch + 1)
         val_disc_accu.append(oa_val)
@@ -307,7 +357,7 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
 
         # Selection of best model so far using validation dataset.
         # Relative importance of segmentation over discrimination (0 to 5)
-        rel_imp_seg = 4.75
+        rel_imp_seg = 3
 
         overall = ((5-rel_imp_seg)*(dom_loss) + rel_imp_seg*(f1_val))/5
 
@@ -329,6 +379,16 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
                 target_f1 = f1_val_target
                 torch.save(network, 'BestDANNModel.pt')
                 best_network = network
+
+        if epoch == e_0:
+            best_DA_f1 = f1_val
+            torch.save(network, 'BestDANNModelAfter_e0.pt')
+            best_network = network
+        elif epoch > e_0:
+            if best_DA_f1 < f1_val:
+                best_DA_f1 = f1_val
+                torch.save(network, 'BestDANNModelAfter_e0.pt')
+                best_network = network
                 
         fig = plt.figure(figsize = (7,5))
         
@@ -339,7 +399,7 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, lear
 
         plt.plot(eps, val_accuracy, label = 'Source domain val accuracy')
         plt.plot(eps, val_accuracy_target, label = 'Target domain val accuracy')
-        plt.plot(eps, val_disc_accu, label = 'Discrimination accuracy')
+        # plt.plot(eps, val_disc_accu, label = 'Discrimination accuracy')
         # plt.plot(eps, train_disc_accuracy_l, '--y', label = 'Train discriminator accuracy')
 
         plt.ylim((0,1.1))
