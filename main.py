@@ -21,60 +21,16 @@ from Models.Loss_Functions import FocalLoss
 ######################## For Own Dataset ###########################
 ####################################################################
 
-# # Once datasets have been downloaded (Using DS_Download.sh) you can unzip them
+# # # Once datasets have been downloaded (Using DS_Download.sh) you can unzip them
 # Unzip_DS.UnzipFolders("Tanzania")
 # Unzip_DS.UnzipFolders("IvoryCoast")
 
 # If needed run Hyperparameter tuning to get the optimal HPs
-# BS = [8]
-# LR = [0.001, 0.01, 0.1, 1.5, 3]
-# decay = [0.8]
-# STCh = [16]
-# MU = [0]
-# Bi = [True]
-# gamma = [1, 2, 4]
-# VI = [True]
-# atts = [True, False]
-# res = [False, True]
-
-# for i in range(1):
-#     # HP_Tuning('TanzaniaSplit'+str(i+1), BS, LR, STCh, MU, Bi, gamma, VI, decay, atts, res, tr_size = 0.05, val_size = 0.1)
-#     HP_Tuning('IvoryCoastSplit'+str(i+1), BS, LR, STCh, MU, Bi, gamma, VI, decay, atts, res, tr_size = 0.05, val_size = 0.1)
+# Hyper_Parameter_Tuning.run_HP_Tuning()
     
-# Hyperparameters for DOMAIN ONLY TRAINING
-# domain = 'Tanzania'
-
-# ## Related to DS
-# batch_size = 8
-# transforms = get_transforms()
-# normalization = 'Linear_1_99'
-# VI = True
-# DA = False
-
-# ## Related to the network
-# n_classes = 2
-# bilinear = True
-# starter_channels = 8
-# up_layer = 4
-# attention = True
-# resunet = True
-
-# ## Related to training and evaluation
-# number_epochs = 20
-# learning_rate = 0.1
-# momentum = 0.0
-# loss_function = FocalLoss(gamma = 1)
-# accu_function = BinaryF1Score()
-# device = get_training_device()
-
-# DS_args = [batch_size, transforms, normalization, VI, DA, 1, 1]
-# network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
-# training_args = [learning_rate, momentum, number_epochs, loss_function]
-# eval_args = [loss_function, accu_function]
-
-# Stats = train_3fold_DomainOnly(domain, DS_args, network_args, training_args, eval_args)
-
-# plot_3fold_accuracies(domain, Stats)
+# # Hyperparameters for DOMAIN ONLY TRAINING
+# Train_DomainOnly.run_DomainOnly(domain = 'Tanzania')
+# Train_DomainOnly.run_DomainOnly(domain = 'IvoryCoast')
 
 # For Features extracted analysis
 # S_, T_ = get_features_extracted('IvoryCoastSplit1', 'TanzaniaSplit1', 'OverallBestModel'+domain+'.pt', DS_two_doms, Love = False)
@@ -87,57 +43,74 @@ from Models.Loss_Functions import FocalLoss
 # print('cosine simmilarity:', cos, '\neuclidean distance:', euc)
 
 #### DOMAIN ADAPTATION ####
-# source_domain = 'IvoryCoastSplit2'
-# target_domain = 'TanzaniaSplit2'
 
-# ## Related to DS
-# batch_size = 16
-# transforms = get_transforms()
-# normalization = 'Linear_1_99'
-# VI = True
-# DA = True
+### HP Tuning
+# source_domain = 'IvoryCoastSplit1'
+# target_domain = 'TanzaniaSplit1'
 
-# ## Related to the network
-# n_classes = 2
-# bilinear = True
-# sts = [16]
-# up_layer = 4
+# BS = [8]
+# LR_s = [0.00001, 0.0001, 0.001]
+# LR_d = [None]
+# STCh = [16]
+# MU = [None]
+# Bi = [True]
+# gamma = [2, 4]
+# VI = [True]
 # atts = [True]
-# resunet = False
+# e_0s = [25, 40, 55]
+# l_max = [0.1, 0.3]
+# up_layers = [4]
+# tr_size = 0.1
+# val_size = 0.1
 
-# lr_s = [0.0001]
-# lr_d = [0.0001]
-# momentums = [0]
-# gammas = [3]
+# DANN_HP_Tuning(source_domain, target_domain, BS, LR_s, LR_d, STCh, MU, Bi, gamma, VI, atts, e_0s, l_max, up_layers, tr_size, val_size)
 
-# epochs = 70
-# e_0 = 35
-# l_max = 0.3
-# Love = False
-# binary_love = False
+# TUNED MODEL
+source_domain = 'IvoryCoastSplit1'
+target_domain = 'TanzaniaSplit1'
 
-# domain_loss_function = torch.nn.BCEWithLogitsLoss(reduction = 'mean')
-# accu_function = BinaryF1Score()
+## Related to DS
+batch_size = 16
+transforms = get_transforms()
+normalization = 'Linear_1_99'
+VI = True
+DA = True
 
-# rows = []
+DS_args = [batch_size, transforms, normalization, VI, DA, None, None]
 
-# for lr in lr_s:
-#     for lrd in lr_d:
-#         for momentum in momentums:
-#             for gamma in gammas:
-#                 for attention in atts:
-#                     for starter_channels in sts:
-#                         DS_args = [batch_size, transforms, normalization, VI, DA, 0.1, None]
-#                         network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
-                    
-#                         seg_loss_function = FocalLoss(gamma = gamma)
-#                         best_model_accuracy, target, best_overall, best_network = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr, lrd, momentum, epochs, e_0, l_max, Love, binary_love, seg_loss_function, domain_loss_function, accu_function)
-            
-#                         rows.append([starter_channels, lr, lrd, momentum, gamma, attention, best_model_accuracy, target, best_overall])
+## Related to the network
+n_classes = 2
+bilinear = True
+sts = 16
+up_layer = 4
+att = True
 
-#                         df = pd.DataFrame(rows)
-#                         df.columns = ['StCh', 'LR_seg', 'LR_d', 'momentum', 'gamma', 'attention', 'F1-Source', 'F1-Target', 'best_overall']
-#                         df.to_csv('HP_DANN.csv')
+network_args = [n_classes, bilinear, sts, up_layer, att]
+
+lr_s = 0.0001
+lr_d = 0.0001
+
+optim_args = [lr_s, lr_d]
+
+epochs = 60
+e_0 = 30
+l_max = 0.01
+
+DA_args = [epochs, e_0, l_max]
+
+gamma = 4
+
+seg_loss = FocalLoss(gamma = gamma)
+
+Love = False
+binary_love = False
+
+domain_loss_function = torch.nn.BCEWithLogitsLoss(reduction = 'mean')
+accu_function = BinaryF1Score()
+
+
+best_model_acc, target_acc, best_seg_disc_acc, best_network, training_list = DANN_training_loop(source_domain, target_domain, DS_args, network_args, optim_args, DA_args, seg_loss = seg_loss, domain_loss = domain_loss_function, semi = True, semi_perc = 0.5)
+
 
 # ## Visualize DANN
 # tr, val, test = get_DataLoaders('TanzaniaSplit1', 4, None, 'Linear_1_99', True)
@@ -218,66 +191,55 @@ from Models.Loss_Functions import FocalLoss
 # print(accu)
 
 #### DOMAIN ADAPTATION ####
-source_domain = ['urban']
-target_domain = ['rural']
+# source_domain = ['urban']
+# target_domain = ['rural']
 
-# Related to DS
-batch_size = 12
-transforms = None
-# get_LOVE_transforms()
+# # Related to DS
+# batch_size = 12
+# transforms = None
+# # get_LOVE_transforms()
 
-# Related to the network
-n_classes = 8
-bilinear = True
-starter_channels = 16
-up_layer = 4
-attentions = [True]
-# resunet = False
-Love = True
+# # Related to the network
+# n_classes = 8
+# bilinear = True
+# starter_channels = 16
+# up_layer = 4
+# attention = True
+# # resunet = False
+# Love = True
+# binary_love = False
+# DA = True
 
-binary_love = False
+# DS_args = [batch_size, transforms, DA, None, None]
 
-DS_args = [batch_size, transforms, True, 0.1, 0.1]
+# lr_d = 0.001
+# lr_s = 0.001
+# gamma = 3
+
+# optim_args = [lr_s, lr_d]
+
+# epochs = 70
+# e_0 = 40
+# l_max = 0.15
+
+# DA_args = [epochs, e_0, l_max]
 
 
-lrs_d = [0.001]
-lrs_s = [0.001]
-gammas = [3]
-momentums =  [0.0]
-
-epochs = 70
-e_0 = 40
-l_mxs = [0.15]
-
-## ELIOTT BRION params
-# lr = 10**(-4)
-# optimizer = Adam
-# epochs = 150
-# e_0 = 50
-# lambda_max = [0.01, 0.03, 0.1, 0.3] [L3, L6, L9, L11]
-
-rows = []
-
-for lr_disc in lrs_d:
-    for lr_seg in lrs_s:
-        for gamma in gammas:
-            for momentum in momentums:
-                for attention in attentions:
-                    for l_max in l_mxs:
+# ## ELIOTT BRION params
+# # lr = 10**(-4)
+# # optimizer = Adam
+# # epochs = 150
+# # e_0 = 50
+# # lambda_max = [0.01, 0.03, 0.1, 0.3] [L3, L6, L9, L11]
                     
-                        network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
-                    
-                        seg_loss_function = FocalLoss(gamma = gamma, ignore_index = 0)
-                        domain_loss_function = torch.nn.BCEWithLogitsLoss()
-                        accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
-                        
-                        best_model_accuracy, accu_target, best_overall, best_network, training_list = DANN_training_loop(source_domain, target_domain, DS_args, network_args, lr_seg, lr_disc, momentum, epochs, e_0, l_max, Love, binary_love, seg_loss_function, domain_loss_function, accu_function)
-            
-                        rows.append([lr_seg, lr_disc, gamma, momentum, attention, l_max, best_model_accuracy, accu_target, best_overall])
-            
-                        df = pd.DataFrame(rows)
-                        df.columns = ['LR_seg', 'LR_disc', 'gamma','momentum', 'attention', 'l_max', 'IOU-Source', 'IOU-Target', 'IOU-Source + Discriminator']
-                        df.to_csv('HP_LOVE_DANN_2.csv')
+# network_args = [n_classes, bilinear, starter_channels, up_layer, attention, Love]
+
+# seg_loss = FocalLoss(gamma = gamma, ignore_index = 0)
+# domain_loss_function = torch.nn.BCEWithLogitsLoss()
+
+# accu_function = JaccardIndex(task = 'multiclass', num_classes = n_classes, ignore_index = 0)
+
+# best_model_accuracy, accu_target, best_overall, best_network, training_list = DANN_training_loop(source_domain, target_domain, DS_args, network_args, optim_args, DA_args, seg_loss = seg_loss, domain_loss = domain_loss_function, accu_function = accu_function, Love = Love)
 
 # # # #### PREDICTIONS ####
 
