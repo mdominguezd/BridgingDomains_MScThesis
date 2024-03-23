@@ -10,10 +10,10 @@ from Validate.figures_for_validation import plot_GTvsPred_sample_images
 
 
 
-def get_metrics():
-    tr, val, te = get_DataLoaders('TanzaniaSplit1', 10, get_transforms(), 'Linear_1_99', True)
+def get_semisupervision_metrics():
+    data_loaders = get_DataLoaders('TanzaniaSplit1', 10, get_transforms(), 'Linear_1_99', True)
     
-    perc_incl_target = np.arange(5,21, 5)
+    perc_incl_target = np.arange(5,56, 5)
     
     metrics = []
     
@@ -21,14 +21,23 @@ def get_metrics():
         
         net_fn = 'BestDANNModel_SemiSup_'+str(perc)+'.pt'
         net = torch.load(net_fn)
+
+        splits = ['Train', 'Validation', 'Test']
+        
+        k = 0
+        
+        for dl in data_loaders:
+
+            if k == 0: #Do not evaluate on training set
+                k+=1
+            else:
+                met = evaluate(net, dl, FocalLoss(gamma = 2))[0]
+                
+                metrics.append([splits[k], met, len(dl), perc])
     
-        valmet = evaluate(net, val, FocalLoss(gamma = 2))
-        testmet = evaluate(net, te, FocalLoss(gamma = 2))
-    
-        metrics.append([valmet[0], testmet[0]])
+                k+=1
 
     df = pd.DataFrame(metrics)
-    df.columns = ['Validation', 'Test']
-    df['Percentage'] = perc_incl_target
+    df.columns = ['split', 'metric', 'size', 'Percentage']
 
     return df

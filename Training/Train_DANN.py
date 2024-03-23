@@ -7,6 +7,7 @@ import pandas as pd
 from Dataset.ReadyToTrain_DS import *
 from Dataset.Transforms import *
 from Models.U_Net import *
+from Models.Loss_Functions import FocalLoss
 from utils import get_training_device, LOVE_resample_fly
 from Validate.domain_adaptation_performance import cosine_sim, get_features_extracted
 
@@ -115,11 +116,6 @@ def evaluate_disc(network, validate_loaders, device, Love = False):
 
     network.eval()
 
-    # s_dom, t_dom = domains
-    
-    # s_F, t_F = get_features_extracted(s_dom, t_dom, DS_args, network = network)
-
-    # OA_metric = cosine_sim(s_F, t_F)
     k = -1
 
     OA_final = []
@@ -403,6 +399,7 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, opti
         # plt.plot(eps, train_disc_accuracy_l, '--y', label = 'Train discriminator accuracy')
 
         plt.ylim((0,1.1))
+        plt.xlabel('Epoch')
 
         plt.legend()
 
@@ -418,214 +415,29 @@ def DANN_training_loop(source_domain, target_domain, DS_args, network_args, opti
     return best_model_f1, target_f1, best_overall, best_network, training_list
 
 
-    #     if epoch == 0:
-    #         # Evaluate network on validation dataset
-    #         f1_val, loss_val = evaluate(network, source_val_loader, seg_loss, accu_function, Love, binary_love)
-    #         val_accuracy.append(f1_val)
-        
-    #         f1_val_target, loss_val_target = evaluate(network, target_val_loader, seg_loss, accu_function, Love, binary_love)
-    #         val_accuracy_target.append(f1_val_target)
-        
-    #     for k in range(int(batch_iterations)):
-            
-    #         if source_bigger_target:
-                
-    #             if (k == int(batch_iterations)-1): # For the last batch since source and target dataset might not match in dimensions.
-    #                 temp_S_DS = torch.utils.data.Subset(source_train_dataset, [i for i in np.arange(int(k*len(target_train_dataset)), len(source_train_dataset), 1)])
-    #             else:
-    #                 temp_S_DS = torch.utils.data.Subset(source_train_dataset, [i for i in np.arange(int(k*len(target_train_dataset)), int((k+1)*len(target_train_dataset)), 1)])
-        
-    #             # Create train data loaders
-    #             S_loader = torch.utils.data.DataLoader(dataset=temp_S_DS, batch_size=batch_size//2, shuffle=True)
-    #             T_loader = torch.utils.data.DataLoader(dataset=target_train_dataset, batch_size=batch_size//2, shuffle=True)
-
-    #         else:
-
-    #             if (k == int(batch_iterations)-1): # For the last batch since source and target dataset might not match in dimensions.
-    #                 temp_T_DS = torch.utils.data.Subset(target_train_dataset, [i for i in np.arange(int(k*len(source_train_dataset)), len(target_train_dataset), 1)])
-    #             else:
-    #                 temp_T_DS = torch.utils.data.Subset(target_train_dataset, [i for i in np.arange(int(k*len(source_train_dataset)), int((k+1)*len(source_train_dataset)), 1)])
-        
-    #             # Create train data loaders
-    #             S_loader = torch.utils.data.DataLoader(dataset=source_train_dataset, batch_size=batch_size//2, shuffle=True)
-    #             T_loader = torch.utils.data.DataLoader(dataset=temp_T_DS, batch_size=batch_size//2, shuffle=True)
-
-    #         batches = zip(S_loader, T_loader)
-    #         n_batches = min(len(S_loader), len(T_loader))
+def train_full_DANN():
     
-    #         network.train()
-    #         # discriminator.train()
+    DS_args = [8, get_transforms(), 'Linear_1_99', True, True, None, None]
+
+    ## Related to the network
+    n_classes = 2
+    bilinear = True
+    sts = 16
+    up_layer = 4
+    att = True
     
-    #         total_domain_loss = []
-    #         oa = []
-    #         total_segmentation_accuracy = []
-    #         segment_loss = []
+    network_args = [n_classes, bilinear, sts, up_layer, att]
     
-    #         iterable_batches = enumerate(batches)
-
-    #         revgrad = np.max([0, (epoch - e_0)/(epochs - e_0)])
-    #         # 2. / (1. + np.exp(-10 * epoch/epochs)) - 1 GANIN
+    lr_s = 0.0001
+    lr_d = 0.0001
     
-    #         for j in range(n_batches):
+    optim_args = [lr_s, lr_d]
     
-    #             i, (source, target) = next(iterable_batches)
-
-    #             if Love:
-    #                 source_input = LOVE_resample_fly(source['image']).to(device)
-    #                 target_input = LOVE_resample_fly(target['image']).to(device)  
-    #                 source_GT = LOVE_resample_fly(source['mask']).type(torch.long).squeeze().to(device)
-    #                 target_GT = LOVE_resample_fly(target['mask']).type(torch.long).squeeze().to(device)
-                    
-    #                 if binary_love:
-    #                     source_GT = (source_GT == 6).long()
-    #                     target_GT = (target_GT == 6).long()
-    #             else:
-    #                 source_input = source[0].to(device)
-    #                 target_input = target[0].to(device)
-    #                 source_GT = source[1].type(torch.long).squeeze().to(device)
-    #                 target_GT = target[1].type(torch.long).squeeze().to(device)
-
-    #             # Concatenate the input images from both domains
-    #             input = torch.cat([source_input, target_input])
+    epochs = 80
+    e_0 = 40
+    l_max = 0.1
     
-    #             # Get segmentation and domain ground truth labels
-    #             seg_GT = source_GT
-    #             domain_labels = torch.cat([torch.zeros(source_input.shape[0]),
-    #                                         torch.ones(target_input.shape[0])]).to(device)
-                
-    #             # Get predictions
-    #             features = network.FE(input)
-    #             dw = network.FE.DownSteps(input)
-                
-    #             seg_preds = network.C(features, dw)
-    #             dom_preds = network.D(features, revgrad)
-
-    #             # Deal with incorrect dimensions
-    #             if seg_preds[:source_input.shape[0]].max(1)[1].size() != seg_GT.size():
-    #                 seg_GT = seg_GT[None, :, :]
+    DA_args = [epochs, e_0, l_max]
     
-    #             # Calculate the loss function
-    #             segmentation_loss = seg_loss(seg_preds[:source_input.shape[0]], seg_GT)
-    #             discriminator_loss = domain_loss(dom_preds.squeeze(), domain_labels)
-
-    #             seg_imp = 1
-                
-    #             # Total loss
-    #             loss = seg_imp*segmentation_loss + (2-seg_imp)*discriminator_loss
-    
-    #             # set the gradients of the model to 0 and perform the backward propagation
-    #             optim.zero_grad()
-    #             loss.backward()
-    #             optim.step()
-    
-    #             f1 = accu_function.to(device)
-
-    #             accu = f1(seg_preds[:source_input.shape[0]].max(1)[1], seg_GT)
-                
-    #             total_domain_loss.append(discriminator_loss.item())
-    #             segment_loss.append(segmentation_loss.item())
-    #             total_segmentation_accuracy.append(accu.item())
-                
-    #             oa.append(np.sum((dom_preds.squeeze().detach().cpu().numpy() > 0) == domain_labels.detach().cpu().numpy())/(domain_labels.detach().cpu().numpy().size))
-
-    #             step = 2
-    
-    #             # Add loss and accuracy to total
-    #             if ((j/(n_batches//step) == j//(n_batches//step))) & (j != 0):
-                    
-    #                 # total_segmentation_accuracy 
-    #                 train_accuracy_l.append(np.nanmean(total_segmentation_accuracy))
-    #                                         # /(n_batches//step))
-        
-    #                 # total_domain_loss 
-    #                 domain_loss_l.append(np.nanmean(total_domain_loss))
-    #                 # /(n_batches//step))
-                
-    #                 # segment_loss list
-    #                 segmen_loss_l.append(np.nanmean(segment_loss))
-    #                                      # /(n_batches//step))
-
-    #                 train_disc_accuracy_l.append(np.nanmean(oa))
-    #                 # (n_batches//step))
-
-    #                 # Epochs list
-    #                 eps.append(epoch + k/(batch_iterations) + (j/n_batches)/batch_iterations)
-
-    #                 #Reset loss and accuracies
-    #                 total_domain_loss = []
-    #                 oa = []
-    #                 total_segmentation_accuracy = []
-    #                 segment_loss = []
-    
-    #     if (epoch//4 == epoch/4):
-    #         #After 4 epochs, reduce the learning rate by a factor 
-    #         optim.param_groups[0]['lr'] *= 0.75
-        
-    #     # Evaluate network on validation dataset
-    #     f1_val, loss_val = evaluate(network, source_val_loader, seg_loss, accu_function, Love, binary_love, revgrad)
-    #     val_accuracy.append(f1_val)
-    
-    #     f1_val_target, loss_val_target = evaluate(network, target_val_loader, seg_loss, accu_function, Love, binary_love, revgrad)
-    #     val_accuracy_target.append(f1_val_target)
-
-    #     oa_val = evaluate_disc(network, [source_val_loader, target_val_loader], device, Love)
-        
-
-    #     # Selection of best model so far using validation dataset.
-    #     # Relative importance of segmentation over discrimination (0 to 5)
-    #     rel_imp_seg = 4.75
-
-    #     overall = ((5-rel_imp_seg)*(1-oa_val) + rel_imp_seg*(f1_val))/5
-
-    #     print(oa_val, f1_val, overall)
-        
-    #     if epoch == 0:
-    #         best_model_f1 = f1_val
-    #         best_oa = oa_val
-    #         best_overall = overall
-    #         target_f1 = f1_val_target
-    #         torch.save(network, 'BestDANNModel.pt')
-    #         best_network = network
-    #     else:
-    #         if best_overall < overall:
-    #             best_model_f1 = f1_val
-    #             best_oa = oa_val
-    #             best_overall = overall
-    #             print(best_overall)
-    #             target_f1 = f1_val_target
-    #             torch.save(network, 'BestDANNModel.pt')
-    #             best_network = network
-
-    #     fig = plt.figure(figsize = (7,5))
-        
-    #     plt.plot(eps, segmen_loss_l, '-k', label = 'Segmentation loss')
-    #     plt.plot(eps, domain_loss_l, '-r', label = 'Domain loss')
-    #     plt.plot(eps, train_accuracy_l, '--g', label = 'Train segmentation accuracy')
-    #     plt.plot(eps, train_disc_accuracy_l, '--y', label = 'Train discriminator accuracy')
-
-    #     plt.ylim((0,1.5))
-
-    #     fig.savefig('DANN_Training.png', dpi = 100)
-    #     plt.close()
-        
-    # fig = plt.figure(figsize = (7,5))
-        
-    # plt.plot(eps, segmen_loss_l, '--k', label = 'Segmentation loss')
-    # plt.plot(eps, domain_loss_l, '--r', label = 'Domain loss')
-    # plt.plot(eps, train_accuracy_l, '--g', label = 'Train segmentation accuracy')
-    # plt.plot(eps, train_disc_accuracy_l, '--y', label = 'Train discriminator accuracy')
-    
-    # plt.plot(np.arange(0, epochs + 1, 1), val_accuracy, 'darkblue', label = ' Validation Segmentation accuracy on source domain')
-    # plt.plot(np.arange(0, epochs + 1, 1), val_accuracy_target, 'darkred', label = ' Validation Segmentation accuracy on target domain')
-
-    # # plt.ylim((0,1))
-    # plt.title('LR_Seg:' + str(learning_rate_seg) + ' LR_Disc:' + str(learning_rate_disc))
-    
-    # plt.legend()
-    
-    # plt.xlabel('Epochs')
-
-    # fig.savefig('DANN_Training_'+ str(learning_rate_seg) + '_' + str(learning_rate_disc) + '.png', dpi = 150)
-
-    # return best_model_f1, target_f1, best_overall, best_network
+    best_model_f1, target_f1, best_overall, best_network, training_list = DANN_training_loop('IvoryCoastSplit1', 'TanzaniaSplit1', DS_args, network_args, optim_args, DA_args, seg_loss = FocalLoss(4))
     

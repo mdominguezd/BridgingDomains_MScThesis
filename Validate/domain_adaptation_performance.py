@@ -5,6 +5,9 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import pandas as pd
+import matplotlib.gridspec as gridspec
+from torchgeo.datasets import LoveDA
 
 from Dataset.ReadyToTrain_DS import *
 
@@ -38,6 +41,8 @@ def get_features_extracted(source_domain, target_domain, DS_args, network = None
         d = 'Calculating distance metric'
     else:
         d = 'Getting features extracted'
+
+    num_imgs = 4
     
     for i in tqdm(range(n_batches), desc = d):
 
@@ -54,6 +59,12 @@ def get_features_extracted(source_domain, target_domain, DS_args, network = None
 
         s_features = network.FE(source_input)[:max_batch_size].flatten(start_dim = 1).cpu().detach().numpy()
         t_features = network.FE(target_input)[:max_batch_size].flatten(start_dim = 1).cpu().detach().numpy()
+
+        if i == 0:
+            s_imgs = source_input[:num_imgs]
+            # s_feats = s_features[:num_imgs]
+            t_imgs = target_input[:num_imgs]
+            # t_feats = t_features[:num_imgs]
 
         if cos_int:
             cos += cosine_sim(s_features, t_features)
@@ -73,7 +84,7 @@ def get_features_extracted(source_domain, target_domain, DS_args, network = None
     if cos_int or euc_int:
         return cos
     else:
-        return source_F, target_F
+        return source_F, target_F, s_imgs, t_imgs
 
 def tSNE_source_n_target(source_F, target_F):
     """
@@ -90,13 +101,23 @@ def tSNE_source_n_target(source_F, target_F):
 
     tsne_X = tsne.fit_transform(X)
 
-    fig, ax = plt.subplots(1,1,figsize = (9.5,5))
+    fig, ax = plt.subplots(1,1,figsize = (7,4.5))
 
     sns.scatterplot(x = tsne_X[:,0], y = tsne_X[:,1], hue = domains, ax = ax, palette = ['darkblue', 'darkred'])
 
-    ax.set_title('t-SNE of features extracted')
+    plt.tight_layout()
 
-    fig.savefig('t_SNE.png')
+    fig.savefig('t_SNE_simple.png', dpi = 200)
+    
+    for i in range(4):
+        ax.scatter(x = tsne_X[i,0], y = tsne_X[i,1], s = 250, c = 'blue', zorder = -1)
+        ax.text(x = tsne_X[i,0], y = tsne_X[i,1], s = str(i+1), color = 'white')
+        ax.scatter(x = tsne_X[source_F.shape[0] + i,0], y = tsne_X[source_F.shape[0] + i,1], s = 250, c = 'red', zorder = -1)
+        ax.text(x = tsne_X[source_F.shape[0] + i,0], y = tsne_X[source_F.shape[0]+ i,1], s = str(i+1), color = 'white')
+
+    plt.tight_layout()
+
+    fig.savefig('t_SNE.png', dpi = 200)
 
     return tsne_X
 
@@ -122,3 +143,54 @@ def euc_dist(source_F, target_F):
     euc_dist = torch.cdist(source_F, target_F).mean()
 
     return euc_dist
+
+def plot_img_n_features(network_fn, dir, index, Love = False):
+    """
+        Function to plot a specific image of the dataset with the features extracted by the network.
+    """
+    device = get_training_device()
+    
+    network = torch.load(network_fn, map_location = device) 
+
+    if Love:
+        img = LoveDA('LoveDA', split = 'train', scene = dir, download = True).__getitem__(index)['image']
+        img = LOVE_resample_fly(img)[None, :, :, :].to(device)
+    else:
+        img = Img_Dataset(dir).__getitem__(index)[0][None,:,:,:].to(device)
+
+    features = network.FE(img)
+
+    img_ = img[0][:3].detach().cpu().numpy()
+    img_ = np.transpose(img_[:3], (1,2,0))
+
+    # Img_Dataset(dir).plot_imgs(index, False)
+
+    fig = plt.figure(figsize = (16,8))
+    
+    gs = gridspec.GridSpec(4,8)    
+    
+    ax0 = fig.add_subplot(gs[:,:4])
+
+    ax0.imshow(img_)
+
+    ax0.get_yaxis().set_ticks([])
+    ax0.get_xaxis().set_ticks([])
+
+    for i in range(16):
+        
+        if i//4 == i/4:
+            k = 0
+            
+        ax = fig.add_subplot(gs[i//4,4 + k])
+
+        k += 1
+
+        ax.imshow(features[0][i].detach().cpu().numpy())
+
+        ax.get_yaxis().set_ticks([])
+        ax.get_xaxis().set_ticks([])
+
+    plt.tight_layout()
+    plt.suptitle('Activation maps extracted with ' + network_fn, y = 1.02, fontsize = 24)
+    fig.savefig('Act_maps.png', dpi = 200)
+    

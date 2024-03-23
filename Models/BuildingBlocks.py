@@ -43,6 +43,7 @@ class Down(nn.Module):
         
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
+            # nn.Dropout(0.5),
             DoubleConv(in_channels, out_channels, resunet = resunet)
         )
 

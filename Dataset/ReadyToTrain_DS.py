@@ -183,10 +183,10 @@ class Img_Dataset(Dataset):
 
             VIs = im[4:6]
 
-            g1=ax[1,0].imshow(VIs[0], cmap = plt.cm.get_cmap('RdYlGn', 5), vmin = 0, vmax = 1)
+            g1=ax[1,0].imshow(VIs[0], cmap = plt.cm.get_cmap('RdYlGn', 5), vmin = -0.8, vmax = 0.8)
             ax[1,0].set_title('NDVI')
             fig.colorbar(g1)
-            g2=ax[1,1].imshow(VIs[1], cmap = plt.cm.get_cmap('Blues_r', 5), vmin = 0, vmax = 1)
+            g2=ax[1,1].imshow(VIs[1], cmap = plt.cm.get_cmap('Blues_r', 5), vmin = -0.8, vmax = 0.8)
             ax[1,1].set_title('NDWI')
             fig.colorbar(g2)
 
@@ -197,6 +197,8 @@ class Img_Dataset(Dataset):
             ax[0].set_title('Planet image')
             ax[1].imshow(g[0,:,:])
             ax[1].set_title('Cashew crops GT')
+
+        return fig
 
 
     def __getitem__(self, idx):
@@ -209,9 +211,9 @@ class Img_Dataset(Dataset):
         img = io.imread(fname = self.img_folder + '/Cropped' + self.country + self.split + 'StudyArea_{:05d}'.format(idx) + '.tif').astype(np.float32)
 
         if self.VI:
-            if self.norm == 'Linear_1_99':
-                ndvi = (img[:,:,3] - img[:,:,2])/(img[:,:,3] + img[:,:,2]) 
-                ndwi = (img[:,:,1] - img[:,:,3])/(img[:,:,3] + img[:,:,1])
+            ndvi = (img[:,:,3] - img[:,:,2])/(img[:,:,3] + img[:,:,2]) 
+            ndwi = (img[:,:,1] - img[:,:,3])/(img[:,:,3] + img[:,:,1])
+            
 
         if self.norm == 'Linear_1_99':
             for i in range(img.shape[-1]):
@@ -219,6 +221,11 @@ class Img_Dataset(Dataset):
                     img[:,:,i] = (img[:,:,i] - self.quant_TNZ[0,i])/(self.quant_TNZ[1,i] - self.quant_TNZ[0,i])
                 elif 'Ivor' in self.img_folder:
                     img[:,:,i] = (img[:,:,i] - self.quant_CIV[0,i])/(self.quant_CIV[1,i] - self.quant_CIV[0,i])
+        else:
+            for i in range(img.shape[-1]):
+                quant_CIV = np.array([[217.0,	528.0,	389.0,	2162.0],
+                                      [542.0,	896.0,	984.0,	3877.0]])
+                img[:,:,i] = (img[:,:,i] - quant_CIV[0,i])/(quant_CIV[1,i] - quant_CIV[0,i])
 
         if self.VI:
             ndvi = np.expand_dims(ndvi, axis = 2)

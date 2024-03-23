@@ -1,6 +1,3 @@
-# import sys
-# append a new directory to sys.path
-# sys.path.append('../')
 import time
 from collections import deque
 import torch
@@ -12,7 +9,12 @@ plt.style.use('ggplot')
 from tqdm import tqdm
 
 from Dataset.ReadyToTrain_DS import get_DataLoaders, get_LOVE_DataLoaders
+from Dataset.Transforms import get_transforms
+
 from Models.U_Net import UNet
+from Models.Loss_Functions import FocalLoss
+from Validate.figures_for_validation import plot_3fold_accuracies
+
 from utils import get_training_device, LOVE_resample_fly
 
 def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(), Love = False, binary_love = False):
@@ -191,25 +193,27 @@ def training_loop(network, train_loader, val_loader, learning_rate, momentum, nu
         if (epoch//10 == epoch/10):
             #After 4 epochs, reduce the learning rate by a factor 
             optimizer.param_groups[0]['lr'] *= decay
+            
+        if plot:
+            fig, ax = plt.subplots(1,1, figsize = (7,5))
+    
+            ax.plot(train_eps, train_f1s, label = 'Training F1-Score', ls= '--', color = 'r')
+            ax.plot(train_eps, train_loss, label = 'Training Loss', ls = '-', color = 'r')
+    
+            ax.plot(val_eps, val_f1s, label = 'Validation F1-Score', ls = '--', color = 'b')
+            ax.plot(val_eps, val_loss, label = 'Validation Loss', ls = '-', color = 'b')
+            
+            ax.text(val_eps[np.argmax(val_f1s)], np.max(val_f1s), str(np.max(val_f1s)))
+    
+            ax.set_xlabel("Epoch")
+    
+            plt.legend()
+    
+            fig.savefig('TrainingLoop.png', dpi = 200)
+
+            plt.close()
 
     spearman = stats.spearmanr(val_eps, val_f1s)[0]
-    
-    if plot:
-        fig, ax = plt.subplots(1,1, figsize = (7,5))
-
-        ax.plot(train_eps, train_f1s, label = 'Training F1-Score', ls= '--', color = 'r')
-        ax.plot(train_eps, train_loss, label = 'Training Loss', ls = '-', color = 'r')
-
-        ax.plot(val_eps, val_f1s, label = 'Validation F1-Score', ls = '--', color = 'b')
-        ax.plot(val_eps, val_loss, label = 'Validation Loss', ls = '-', color = 'b')
-        
-        ax.text(val_eps[np.argmax(val_f1s)], np.max(val_f1s), str(np.max(val_f1s)))
-
-        ax.set_xlabel("Epoch")
-
-        plt.legend()
-
-        fig.savefig('TrainingLoop.png', dpi = 200)
 
     if val_eps[np.argmax(val_f1s)] == 0:
         no_learning = True
@@ -320,11 +324,11 @@ def train_LoveDA_DomainOnly(domain, DS_args, network_args, training_loop_args):
 
 def run_DomainOnly(domain = 'IvoryCoast'):
     """
-    
+        Function to perform the whole training routine for one of the domains.
     """
     
     ## Related to DS
-    batch_size = 16
+    batch_size = 4
     transforms = get_transforms()
     normalization = 'Linear_1_99'
     VI = True
@@ -339,19 +343,21 @@ def run_DomainOnly(domain = 'IvoryCoast'):
     resunet = False
     
     ## Related to training and evaluation
-    number_epochs = 70
+    number_epochs = 30
     learning_rate = 1
     momentum = 0.2
     loss_function = FocalLoss(gamma = 2)
     accu_function = BinaryF1Score()
     device = get_training_device()
     
-    DS_args = [batch_size, transforms, normalization, VI, DA, 0.5, 0.5]
+    DS_args = [batch_size, transforms, normalization, VI, DA, None, None]
     network_args = [n_classes, bilinear, starter_channels, up_layer, attention, resunet]
     training_args = [learning_rate, momentum, number_epochs, loss_function]
     eval_args = [loss_function, accu_function]
     
     Stats = train_3fold_DomainOnly(domain, DS_args, network_args, training_args, eval_args)
+
+    print(Stats)
     
     plot_3fold_accuracies(domain, Stats)
 

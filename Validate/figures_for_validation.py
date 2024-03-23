@@ -7,6 +7,8 @@ import seaborn as sns
 from tqdm import tqdm
 from sklearn.manifold import TSNE
 
+plt.style.use('bmh')
+
 from torchmetrics.classification import BinaryF1Score, JaccardIndex
 
 from Dataset.ReadyToTrain_DS import *
@@ -150,7 +152,7 @@ def plot_GTvsPred_sample_images(network_fn, data_loader, num_images = 1, Love = 
             ax[i,2].set_title('Predictions')
 
         
-    plt.suptitle('Batch\naccuracy:'+str(accuracy))
+    plt.suptitle('Batch accuracy:\n'+str(round(accuracy.numpy(), 2)))
     plt.tight_layout()
 
 ### TAKEN FROM: https://gist.github.com/Flova/8bed128b41a74142a661883af9e51490
