@@ -2,7 +2,7 @@
 
 This repository contains all of the code used for my MSc. thesis, which can be found [here](https://www.dropbox.com/scl/fi/cvioui35atli96pfxpkhj/MGI_Thesis_Report_DominguezDuran_Martin.pdf?rlkey=q5s62shwle3nge81en5f4glnb&dl=0).
 
-<p align="center" width = '50%'>
+<p align="center" width=150>
   <img src="assets/picture.png" />
 </p>
 
