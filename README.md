@@ -1,6 +1,10 @@
 # Bridging domains: Assessment of Domain Adaptation methods for mapping Cashew crops in Africa
 
-This repository contains all of the code used for my MSc. thesis
+This repository contains all of the code used for my MSc. thesis, which can be found [here](https://www.dropbox.com/scl/fi/cvioui35atli96pfxpkhj/MGI_Thesis_Report_DominguezDuran_Martin.pdf?rlkey=q5s62shwle3nge81en5f4glnb&dl=0).
+
+<p align="center" width = '50%'>
+  <img src="assets/picture.png" />
+</p>
 
 ## Objective
 The overall objective of this thesis was to assess the performance of **adversarial domain adaptation techniques** for increasing the **generalization capabilities** of deep learning models for **Cashew crop mapping**.
