@@ -6,7 +6,7 @@ from Training.Train_DANN import evaluate as eval_da
 
 import torch
 import pandas as pd
-from torchmetrics.classification import BinaryF1Score, JaccardIndex, MulticlassF1Score
+from torchmetrics.classification import BinaryF1Score, JaccardIndex, MulticlassF1Score, BinaryConfusionMatrix
 
 import numpy as np
 import matplotlib
@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Patch
 from matplotlib.colors import LinearSegmentedColormap
+import seaborn as sns
 
 plt.style.use('bmh')
 import warnings
@@ -311,6 +312,64 @@ def plot_TNZ_CIV_samples(device = get_training_device()):
 
     return fig
 
+def plot_confusion_matrix(network_fn, Dataset, Love = False, DA = False):
+    """
+        Function to obtain the confusion matrices
+    """
+
+    device = get_training_device()
+
+    net = torch.load(network_fn).to(device)
+
+    bcm = BinaryConfusionMatrix()
+
+    tr, val, te = get_DataLoaders(Dataset, 4, None, 'Linear_1_99', True)
+
+    with torch.no_grad():
+        cms = []
+        # Iterate over validate loader to get mean accuracy and mean loss
+        for i, Data in enumerate(te):
+            
+            # The inputs and GT are obtained differently depending of the Dataset (LoveDA or our own DS)
+            if Love:
+                inputs = LOVE_resample_fly(Data['image'])
+                GTs = LOVE_resample_fly(Data['mask'])
+            else:
+                inputs = Data[0]
+                GTs = Data[1]
         
+            inputs = inputs.to(device)
+            GTs = GTs.type(torch.long).squeeze().to(device)
 
+            pred = net(inputs)
+            
+            if DA == True:
+                pred = pred[0]
+        
+            bcm = bcm.to(device)
+        
+            if (pred.max(1)[1].shape != GTs.shape):
+                GTs = GTs[None, :, :]
 
+            loss = FocalLoss(2)(pred, GTs)/GTs.shape[0]
+        
+            cm = bcm(pred.max(1)[1], GTs)
+
+            cms.append(cm.to('cpu').numpy())
+
+        cm = np.sum(cms, axis = 0)/(np.sum(cms))
+        ax = sns.heatmap(cm, annot = True, vmin = 0, vmax = 1, cmap = 'RdYlGn')
+        ax.set_yticks([0.5,1.5],['Background', 'Cashew'])
+        ax.set_ylabel('GT')
+        ax.set_xticks([0.5,1.5],['Background', 'Cashew'])
+        ax.set_xlabel('Predicted')
+
+        ax.set_title('Confusion matrix for ' + network_fn + '\napplied on ' + Dataset)
+
+        fig = plt.gcf()
+
+        plt.tight_layout()
+
+        fig.savefig('Conf_matrix.png', dpi = 150)
+
+    return cm

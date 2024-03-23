@@ -26,6 +26,8 @@ def evaluate(net, validate_loader, loss_function, accu_function = BinaryF1Score(
             - validate_loader: Validation (or Test) dataset with which the network will be evaluated.
             - loss_function: Loss function used to evaluate the network.
             - accu_function: Accuracy function used to evaluate the network.
+            - **Love:** Binary to indicate if working with LoveDA dataset.
+            - **binary_love:** Binary to indicate if working with only one class of LoveDA dataset  
 
         Output:
             - metric: List with loss and accuracy values calculated for the validation/test dataset.
